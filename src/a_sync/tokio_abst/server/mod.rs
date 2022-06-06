@@ -3,6 +3,7 @@ use std::io::Cursor;
 use tokio::net::{TcpListener, TcpSocket, TcpStream};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
+use rmp::decode::read_marker;
 use rmp::encode;
 use rmpv::encode::write_value;
 use rmpv::Value;
@@ -11,6 +12,7 @@ use uuid::Uuid;
 use crate::packet::{ABSTPacket, PacketData};
 use crate::{frame_data, get_header, PacketBuildError};
 use crate::a_sync::{ConnectedDevice, ConnectedDeviceType, Server};
+use crate::a_sync::tokio_abst::tmp;
 use crate::encryption::{Encryption, NoEncryption};
 use crate::protocol::{ConnectionType, DeviceToDevice, DeviceToRealm};
 
@@ -29,21 +31,15 @@ impl<CT: ConnectionType> Server<TcpListener, CT> {
 
 impl<CT: ConnectionType, Enc: Encryption> ConnectedDevice<'_, TcpStream, CT, Enc> {
 
-    pub async fn receive_packet(&mut self) -> Result<ABSTPacket<Value>, crate::Error> {
-        // Create the initial reader
-        let mut reader = BytesMut::new();
-        // Read data
-        self.connection.read(&mut reader).await.map_err(crate::Error::from)?;
-        // Parse header
-        let mut cursor = Cursor::new(&reader);
-        let length: usize = get_header(&mut cursor)?;
-        // Drops the data that has already been read.
-        let mut value = reader.split_off(cursor.position() as usize);
+    pub async fn receive_packet<PD: PacketData>(&mut self) -> Result<ABSTPacket<PD>, crate::Error> {
+        // Binary Header
+        let result = tmp::read_binary_header(&mut self.connection).await.map_err(crate::Error::from)?;
+        let mut reader = BytesMut::with_capacity(result);
         // Check for data that could need to be read
-        while value.len() < length {
+        while reader.len() < result {
             self.connection.read(&mut reader).await.map_err(crate::Error::from)?;
         }
-        todo!("Parse the data")
+        ABSTPacket::<PD>::from_bytes(reader.freeze()).map_err(crate::Error::from)
     }
 }
 
