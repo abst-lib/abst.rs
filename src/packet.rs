@@ -1,19 +1,104 @@
-use std::fmt::Debug;
-use std::io::{Cursor};
+use std::fmt::{Debug, Formatter};
+use std::io::{Cursor, Error, Read, Write};
 use bytes::Bytes;
+use light_mp_serde::serializer::{SerializeError, Serializer};
+use rmp::decode::ValueReadError;
+use rmp::{decode, encode};
+use rmp::encode::ValueWriteError;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::DeserializeOwned;
 
-use rmpv::decode::read_value;
-use rmpv::Value;
 use uuid::Uuid;
 
-pub struct PacketBuildError();
+#[derive(Debug)]
+pub enum PacketBuildError {
+    Serialization(light_mp_serde::serializer::SerializeError),
+    ValueWriteError(ValueWriteError<std::io::Error>),
+}
 
-pub trait PacketData: Debug + Send + Sync {
-    fn into_value(self) -> Result<Value, PacketBuildError>;
+impl From<ValueWriteError<std::io::Error>> for PacketBuildError {
+    fn from(value: ValueWriteError<std::io::Error>) -> Self {
+        PacketBuildError::ValueWriteError(value)
+    }
+}
+impl From<SerializeError> for PacketBuildError {
+    fn from(value:SerializeError) -> Self {
+        PacketBuildError::Serialization(value)
+    }
+}
 
-    fn from_bytes(bytes: Bytes) -> Result<Self, PacketBuildError>
-        where
-            Self: Sized;
+#[derive(Debug)]
+pub enum PacketReadError {
+    Deserialization(light_mp_serde::deserializer::DeserializeError),
+    ValueReadError(ValueReadError<std::io::Error>),
+    IOError(std::io::Error),
+}
+
+impl From<ValueReadError<std::io::Error>> for PacketReadError {
+    fn from(value: ValueReadError<std::io::Error>) -> Self {
+        PacketReadError::ValueReadError(value)
+    }
+}
+
+impl From<std::io::Error> for PacketReadError {
+    fn from(value: std::io::Error) -> Self {
+        PacketReadError::IOError(value)
+    }
+}
+
+
+pub trait PacketData: Send + Sync {
+    /// To read the slice from the packet
+    fn from_bytes<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized;
+    fn into_bytes(self) -> Result<Vec<u8>, PacketBuildError> where Self: Sized {
+        let mut vec = Vec::new();
+        self.append_bytes(&mut vec)?;
+        Ok(vec)
+    }
+    /// Append the packet data to the given buffer.
+    /// # Errors
+    /// Returns an error if the packet data could not be appended.
+    /// # Returns
+    /// The number of bytes appended. *Not Implemented*
+    fn append_bytes<Writer: Write>(self, write: &mut Writer) -> Result<usize, PacketBuildError> where Self: Sized;
+}
+
+pub trait SerdePacketData: PacketData + Serialize + DeserializeOwned {}
+
+pub fn read_target_from_realm_packet(reader: &mut impl Read) -> Result<Uuid, PacketReadError> {
+    let most = decode::read_u64(reader)?;
+    let least = decode::read_u64(reader)?;
+    Ok(Uuid::from_u64_pair(most, least))
+}
+
+impl PacketData for (Uuid, Vec<u8>) {
+    fn from_bytes<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        let uuid = read_target_from_realm_packet(reader)?;
+        let mut vec = Vec::new();
+        reader.read_to_end(&mut vec)?;
+        Ok((uuid, vec))
+    }
+
+    fn append_bytes<Writer: Write>(self, write: &mut Writer) -> Result<usize, PacketBuildError> where Self: Sized {
+        let (uuid, data) = self;
+        let (most, least) = uuid.as_u64_pair();
+        encode::write_u64(write, most)?;
+        encode::write_u64(write, least)?;
+        encode::write_bin(write, data.as_ref())?;
+        Ok(0) //TODO return the number of bytes written
+    }
+}
+
+/// Uses the Serde Serializer to serialize the packet data.
+impl<Builtin: SerdePacketData> PacketData for Builtin {
+    fn from_bytes<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        todo!("light_mp_serde is not implemented yet")
+    }
+
+    fn append_bytes<Writer: Write>(self, write: &mut Writer) -> Result<usize, PacketBuildError> where Self: Sized {
+        self.serialize(&mut Serializer::new(write))?;
+        Ok(0) //TODO return the number of bytes written
+    }
 }
 
 
@@ -26,105 +111,25 @@ pub struct ABSTPacket<PD: PacketData> {
 }
 
 
-impl<PD: PacketData> PacketData for ABSTPacket<PD> {
-    fn into_value(self) -> Result<Value, PacketBuildError> {
-        let mut convert = Vec::new();
-        rmp::encode::write_u8(&mut convert, self.protocol).map_err(|_| PacketBuildError())?;
-        rmp::encode::write_u8(&mut convert, self.packet_id).map_err(|_| PacketBuildError())?;
-        let value = self.content.into_value()?;
-        rmpv::encode::write_value(&mut convert, &value).map_err(|_| PacketBuildError())?;
-        Ok(Value::Binary(convert))
-    }
-
-    fn from_bytes(bytes:Bytes) -> Result<Self, PacketBuildError> where Self: Sized {
-        let mut cursor = Cursor::new(bytes);
-        let protocol = rmp::decode::read_u8(&mut cursor).map_err(|_| PacketBuildError())?;
-        let packet_id = rmp::decode::read_u8(&mut cursor).map_err(|_| PacketBuildError())?;
-        let content = rmpv::decode::read_value(&mut cursor).map_err(|_| PacketBuildError()).and_then(to_bytes).map(Bytes::from)?;
-
-        let content = PD::from_bytes(content)?;
-        Ok(ABSTPacket {
-            protocol,
-            packet_id,
-            content,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct RealmPacketContent<PD: PacketData> {
-    pub target_device: Uuid,
-    pub content: ABSTPacket<PD>, // Encrypted
-}
-
 #[derive(Debug)]
 pub struct RealmPacketEncrypted {
     pub target_device: Uuid,
     pub content: Vec<u8>, // Encrypted
 }
 
-impl<PD: PacketData> PacketData for RealmPacketContent<PD> {
-    fn into_value(self) -> Result<Value, PacketBuildError> {
-        let (most, least) = self.target_device.as_u64_pair();
-        let mut convert = Vec::new();
-        rmp::encode::write_u64(&mut convert, most).map_err(|_| PacketBuildError())?;
-        rmp::encode::write_u64(&mut convert, least).map_err(|_| PacketBuildError())?;
-        let value = self.content.into_value()?;
-        rmpv::encode::write_value(&mut convert, &value).map_err(|_| PacketBuildError())?;
-        Ok(Value::Binary(convert))
-    }
 
-    fn from_bytes(bytes: Bytes) -> Result<Self, PacketBuildError> where Self: Sized {
-        panic!("You can not decrypt this here")
-    }
+pub fn read_packet_type<Reader: Read>(value: &mut Reader) -> Result<(u8, u8),PacketReadError> {
+    let protocol = decode::read_u8(value)?;
+    let packet = decode::read_u8(value)?;
+    Ok((protocol, packet))
 }
 
-impl PacketData for RealmPacketEncrypted {
-    fn into_value(self) -> Result<Value, PacketBuildError> {
-        panic!("You can not encrypt this here")
-    }
-
-    fn from_bytes(bytes: Bytes) -> Result<Self, PacketBuildError> where Self: Sized {
-        let mut cursor = Cursor::new(bytes);
-
-        let most = rmpv::decode::read_value(&mut cursor).map_err(|_| PacketBuildError()).and_then(to_u64)?;
-        let least = rmpv::decode::read_value(&mut cursor).map_err(|_| PacketBuildError()).and_then(to_u64)?;
-        let uuid = Uuid::from_u64_pair(most, least);
-        let content = rmpv::decode::read_value(&mut cursor).map_err(|_| PacketBuildError()).and_then(to_bytes)?;
-        Ok(RealmPacketEncrypted {
-            target_device: uuid,
-            content,
-        })
-    }
+pub trait IntoPacketIdentifier {
+    fn into_packet_identifier(self) -> (u8, u8);
 }
 
-fn to_u64(value: Value) -> Result<u64, PacketBuildError> {
-    match value {
-        Value::Integer(value) => {
-            if value.is_i64() {
-                Ok(value.as_i64().unwrap() as u64)
-            } else {
-                Ok(value.as_u64().unwrap())
-            }
-        }
-        _ => { Err(PacketBuildError()) }
+impl IntoPacketIdentifier for (u8, u8) {
+    fn into_packet_identifier(self) -> (u8, u8) {
+        self
     }
 }
-
-fn to_bytes(value: Value) -> Result<Vec<u8>, PacketBuildError> {
-    match value {
-        Value::Binary(value) => { Ok(value) }
-        _ => { return Err(PacketBuildError()); }
-    }
-}
-
-impl PacketData for Value {
-    fn into_value(self) -> Result<Value, PacketBuildError> {
-        Ok(self)
-    }
-
-    fn from_bytes(bytes: Bytes) -> Result<Self, PacketBuildError> where Self: Sized {
-        Self::from_bytes(bytes)
-    }
-}
-

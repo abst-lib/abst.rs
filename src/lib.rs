@@ -1,8 +1,10 @@
+extern crate core;
+
 pub mod a_sync;
 pub mod packet;
-mod protocol;
+pub mod protocol;
 pub mod error;
-mod encryption;
+pub mod encryption;
 
 use std::io::Read;
 use bytes::Bytes;
@@ -17,12 +19,4 @@ mod tests {
         let result = 2 + 2;
         assert_eq!(result, 4);
     }
-}
-
-fn frame_data<B:AsRef<[u8]>>(data: B)-> Result<Vec<u8>, PacketBuildError> {
-    let data = data.as_ref();
-    let mut result = Vec::new();
-    encode::write_u64(&mut result, data.len() as u64).map_err(|_| PacketBuildError())?;
-    encode::write_bin(&mut result, data).map_err(|_| PacketBuildError())?;
-    Ok(result)
 }

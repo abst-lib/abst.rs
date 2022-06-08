@@ -10,3 +10,5 @@ name = "client"
 name = "server"
 [dependencies]
 abst-rs = { path = "../../" }
+iced = "0.4.2"
+tokio = { version = "1.19.1", features = ["full"] }
