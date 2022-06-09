@@ -1,11 +1,10 @@
-pub trait Encryption: Clone {
 
-}
+use uuid::Uuid;
+
 #[derive(Clone)]
-pub struct NoEncryption;
-impl Encryption for NoEncryption {
+pub struct ThemisEncryptionManager;
 
-}
-pub trait EncryptionManager {
 
+pub struct ThemisEncryptionSession{
+    server_id: Uuid,
 }

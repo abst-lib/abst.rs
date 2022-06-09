@@ -1,29 +1,36 @@
+use uuid::Uuid;
+use crate::encryption::ThemisEncryptionManager;
 use crate::Error;
 use crate::packet::{ABSTPacket, PacketData};
-
-pub enum Protocol {
-    DeviceToDevice,
-    DeviceToPeer,
-    DeviceToRealm,
-    Other(u8),
+#[derive(Clone)]
+pub enum ConnectionStatus {
+    /// The connection is established however needs to be encrypted or paired
+    Entry,
+    /// Current Pairing
+    Pairing,
+    /// The connection is still needing to be encrypted
+    PendingEncryption,
+    /// The connection is ready to use.
+    Connected,
 }
 
-pub trait ConnectionType: Clone {
-
-}
+pub trait ConnectionType: Clone {}
 
 #[derive(Clone)]
-pub struct DeviceToDevice {}
-
-impl ConnectionType for DeviceToDevice {
-
+pub struct DirectConnection {
+    pub encryption: ThemisEncryptionManager,
+    pub device_id: Uuid,
+    pub status: ConnectionStatus,
 }
+
+impl ConnectionType for DirectConnection {}
+
 
 #[derive(Clone)]
-pub struct DeviceToRealm {
+pub struct DTDViaRealm {
+    pub device_id: Uuid,
+    pub encryption: ThemisEncryptionManager,
 
 }
 
-impl ConnectionType for DeviceToRealm {
-
-}
+impl ConnectionType for DTDViaRealm {}

@@ -9,6 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde::de::DeserializeOwned;
 
 use uuid::Uuid;
+use crate::packets::{PacketType, Protocol};
 
 #[derive(Debug)]
 pub enum PacketBuildError {
@@ -131,5 +132,11 @@ pub trait IntoPacketIdentifier {
 impl IntoPacketIdentifier for (u8, u8) {
     fn into_packet_identifier(self) -> (u8, u8) {
         self
+    }
+}
+
+impl<P: PacketType> IntoPacketIdentifier for (Protocol, &P){
+    fn into_packet_identifier(self) -> (u8, u8) {
+        (self.0 as u8, self.1.packet_id())
     }
 }

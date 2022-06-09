@@ -5,6 +5,7 @@ pub mod packet;
 pub mod protocol;
 pub mod error;
 pub mod encryption;
+pub mod packets;
 
 use std::io::Read;
 use bytes::Bytes;

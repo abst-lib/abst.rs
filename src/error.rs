@@ -18,6 +18,10 @@ impl From<PacketBuildError> for Error {
     fn from(value: PacketBuildError) -> Self {
         Error::PacketBuild(value)
     }
+}impl From<PacketReadError> for Error {
+    fn from(value: PacketReadError) -> Self {
+        Error::PacketRead(value)
+    }
 }
 
 impl From<rmp::decode::ValueReadError<std::io::Error>> for Error {
