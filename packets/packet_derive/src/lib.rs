@@ -1,7 +1,6 @@
 mod packet;
 
 use proc_macro::TokenStream;
-use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
 #[proc_macro_derive(Packet, attributes(packet))]

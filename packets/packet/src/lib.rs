@@ -1,24 +1,44 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::io::Read;
+use std::io::{Read, Write};
 use rmp::decode::ValueReadError;
+use rmp::encode::ValueWriteError;
 
 pub mod protocol;
 pub mod packet;
+mod content;
 
-#[derive(Debug)]
-pub enum PacketReadError {
+pub use content::PacketContent;
+use crate::packet::Packet;
+use crate::protocol::Protocol;
+
+#[derive(Debug, thiserror::Error)]
+pub enum PacketWriteError {
+    #[error("Failed to write value: {0}")]
     IOError(std::io::Error),
+    #[error("Failed to write value: {0}")]
     ContentError(Box<dyn Error + Send + Sync + 'static>),
 }
 
-impl Display for PacketReadError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+
+impl From<ValueWriteError<std::io::Error>> for PacketWriteError {
+    fn from(value: ValueWriteError<std::io::Error>) -> Self {
+        match value {
+            ValueWriteError::InvalidDataWrite(error) => PacketWriteError::IOError(error),
+            ValueWriteError::InvalidMarkerWrite(error) => PacketWriteError::IOError(error),
+        }
     }
 }
 
-impl Error for PacketReadError {}
+#[derive(Debug, thiserror::Error)]
+pub enum PacketReadError {
+    #[error("Failed to write value: {0}")]
+    IOError(std::io::Error),
+    #[error("Failed to write value: {0}")]
+    ContentError(Box<dyn Error + Send + Sync + 'static>),
+}
+
+
 impl From<ValueReadError<std::io::Error>> for PacketReadError {
     fn from(value: ValueReadError<std::io::Error>) -> Self {
         match value {
@@ -29,26 +49,25 @@ impl From<ValueReadError<std::io::Error>> for PacketReadError {
     }
 }
 
-// Data Types that Implement this trait can be put inside the Packet Content
-pub trait PacketContent {
-    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized;
+pub trait IntoPacket {
+    fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError>;
 }
 
-impl PacketContent for u8 {
-    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
-
-        rmp::decode::read_u8(reader).map_err(PacketReadError::from)
+impl<Pr: Protocol<Error=PacketWriteError>> IntoPacket for Pr {
+    fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
+        self.write_payload(writer)
     }
 }
 
-impl PacketContent for u32 {
-    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
-        rmp::decode::read_u32(reader).map_err(PacketReadError::from)
+impl IntoPacket for (u8, u8, Vec<u8>) {
+    fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
+        todo!()
+    }
+}
+impl<Pk: Packet<Error=PacketWriteError>> IntoPacket for (u8, Pk) {
+    fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
+        todo!()
     }
 }
 
-impl PacketContent for u64 {
-    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
-        rmp::decode::read_u64(reader).map_err(PacketReadError::from)
-    }
-}
+

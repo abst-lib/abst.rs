@@ -1,13 +1,11 @@
 use proc_macro::{Ident, Span};
 use std::collections::HashMap;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, quote_spanned};
+use quote::{format_ident, quote};
 use syn::{DataEnum, Field, LitByte, LitInt, Variant};
 use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
 use syn::Result;
 use syn::spanned::Spanned;
-use syn::token::Comma;
 
 mod packet_attrs {
     syn::custom_keyword!(packet_id);
@@ -40,79 +38,130 @@ impl Parse for PacketAttrs {
     }
 }
 
-pub(crate) fn parse_enum(ident: syn::Ident, data: DataEnum) -> Result<TokenStream> {
-    let mut packets = HashMap::new();
-    let mut packets_handlers = Vec::new();
-    for packet_types in data.variants {
-        let packet_id = packet_types.attrs.iter().find(|attr| attr.path.is_ident("packet"));
+pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<TokenStream> {
+    let mut packet_types = HashMap::new();
+    let mut packet_handlers = Vec::new();
+    let mut get_packet_id_arms = Vec::new();
+
+    for packet_variant in data.variants {
+        let packet_id = packet_variant.attrs.iter().find(|attr| attr.path.is_ident("packet"));
         if packet_id.is_none() {
-            return Err(syn::Error::new(packet_types.span(), "Packet must have a packet_id attribute"));
+            return Err(syn::Error::new(packet_variant.span(), "Packet must have a packet_id attribute"));
         }
         let packet_id = packet_id.unwrap();
         let value = packet_id.parse_args::<PacketAttrs>()?;
         match value {
             PacketAttrs::PacketId { value, .. } => {
-                let value = value.base10_parse::<u8>()?;
-                let (method_name, method) = create_parser(packet_types, ident.clone())?;
-                packets.insert(value, method_name);
-                packets_handlers.push(method);
+                let packet_id_id = value.base10_parse::<u8>()?;
+                let variant_name = packet_variant.ident.clone();
+                get_packet_id_arms.push(quote! {
+                    #packet_ident::#variant_name(_) => #packet_id_id,
+                });
+                let read_method = create_parser(&packet_variant, &packet_ident)?;
+                let write_method = create_writer(&packet_variant)?;
+                let mod_name = format_ident!("{}_handler", variant_name);
+                let handler = quote! {
+                    mod #mod_name {
+                        use super::*;
+                        #read_method
+                        #write_method
+                    }
+                };
+                packet_types.insert(packet_id_id, packet_variant);
+                packet_handlers.push(handler);
             }
             PacketAttrs::Default => {
                 //TODO crate a default handler
             }
         }
     }
+    let mut read_arms = Vec::new();
+    let mut write_arms = Vec::new();
+    for (packet_id, variant) in packet_types.iter() {
+        let variant_name = &variant.ident;
+        let mod_name = format_ident!("{}_handler", variant_name);
 
-    let packet_parsers = quote! {
-            #(#packets_handlers)*
-
-    };
-    let mut arms = Vec::new();
-    for (value, method_name) in packets {
-        arms.push(quote! {
-            #value => {
-                let packet = #method_name(reader);
+        read_arms.push(quote! {
+            #packet_id => {
+                let packet = #mod_name::read(reader);
                 Some(packet)
+            }
+        });
+        write_arms.push(quote! {
+            #packet_ident::#variant_name() => {
+                #mod_name::write(writer)?;
             }
         });
     }
     Ok(quote! {
-            #packet_parsers
-
-        impl ::packet::packet::Packet for #ident{
+        #(#packet_handlers)*
+        impl ::packet::packet::Packet for #packet_ident{
             type Error = ::packet::PacketReadError;
+            fn get_packet_id(&self) -> u8 {
+                match self {
+                    #(#get_packet_id_arms)*
+                    _ => {
+                        panic!("Unknown packet")
+                    } ///TODO: Create a default handler
+                }
+            }
+            fn write_payload<Writer: ::std::io::Write>(self, writer: &mut Writer) -> Result<(), Self::Error> {
+                match self{
+                    #(#write_arms)*
+                    _ => {
+                        panic!("Unknown packet")
+                    } ///TODO: Create a default handler
+                }
+                Ok(())
+            }
             fn build_or_none<Reader: ::std::io::Read>(id: u8, reader: &mut Reader) -> Option<Result<Self, Self::Error>> where Self: ::std::marker::Sized{
                 match id {
-                    #(#arms)*
+                    #(#read_arms)*
                     _ => None
                 }
             }
 
         }
-    }.into())
+    })
 }
 
-/// Returns a A method name. That takes a reader and Token Stream for the method
-fn create_parser(variant: Variant, value: syn::Ident) -> Result<(proc_macro2::Ident, TokenStream)> {
-    let varname = format_ident!("{}_parser", variant.ident);
-    let variant_name = variant.ident;
-    let fields = variant.fields;
-    let mut fields_parsers = Vec::new();
-    let mut field_names = Vec::new();
-    for (key, field) in fields.iter().enumerate() {
-        let field_name = format_ident!("field_{}", key);
-        fields_parsers.push(quote!{
+    /// Returns a A method name. That takes a reader and Token Stream for the method
+    fn create_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
+        let variant_name = &variant.ident;
+        let fields = &variant.fields;
+        let mut fields_parsers = Vec::new();
+        let mut field_names = Vec::new();
+        for (key, field) in fields.iter().enumerate() {
+            let field_name = format_ident!("field_{}", key);
+            fields_parsers.push(quote! {
             let #field_name: #field = PacketContent::read(reader)?;
         });
-        field_names.push(field_name);
-    }
-    let token_stream = quote! {
-        fn #varname<Reader: ::std::io::Read>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{ //TODO get the types to return
-                      use packet::PacketContent;
-
+            field_names.push(field_name);
+        }
+        let token_stream = quote! {
+        pub fn read<Reader: ::std::io::Read>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{
+            use packet::PacketContent;
             #(#fields_parsers)*
-Ok(#value::#variant_name(#(#field_names),*))
+            Ok(#value::#variant_name(#(#field_names),*))
         }
     };
-    Ok((varname, token_stream))
-}
+        Ok(token_stream)
+    }
+
+    fn create_writer(variant: &Variant) -> Result<TokenStream> {
+        let fields = &variant.fields;
+        let mut field_writers = Vec::new();
+        for field in fields.iter() {
+            field_writers.push(quote! {
+            #field::write(writer)?;
+        });
+        }
+        let token_stream = quote! {
+        pub fn write<Writer: ::std::io::Write>(writer: &mut Writer) -> Result<(), ::packet::PacketWriteError>{
+            use packet::PacketContent;
+            #(#field_writers)*
+            Ok(())
+        }
+    };
+        Ok(token_stream)
+    }

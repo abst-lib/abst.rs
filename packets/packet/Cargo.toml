@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 packet_derive = { path = "../packet_derive", optional = true }
 rmp= "0.8.11"
+thiserror = "1.0.31"
 [dev-dependencies]
 packet_derive = { path = "../packet_derive" }
