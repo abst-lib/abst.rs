@@ -53,7 +53,7 @@ pub trait IntoPacket {
     fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError>;
 }
 
-impl<Pr: Protocol<Error=PacketWriteError>> IntoPacket for Pr {
+impl<Pr: Protocol<ReadError=PacketReadError,WriteError=PacketWriteError>> IntoPacket for Pr {
     fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
         self.write_payload(writer)
     }
@@ -64,7 +64,7 @@ impl IntoPacket for (u8, u8, Vec<u8>) {
         todo!()
     }
 }
-impl<Pk: Packet<Error=PacketWriteError>> IntoPacket for (u8, Pk) {
+impl<Pk: Packet<ReadError=PacketReadError,WriteError=PacketWriteError>> IntoPacket for (u8, Pk) {
     fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
         todo!()
     }

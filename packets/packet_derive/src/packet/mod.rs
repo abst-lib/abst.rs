@@ -42,6 +42,7 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
     let mut packet_types = HashMap::new();
     let mut packet_handlers = Vec::new();
     let mut get_packet_id_arms = Vec::new();
+    let mut write_arms = Vec::new();
 
     for packet_variant in data.variants {
         let packet_id = packet_variant.attrs.iter().find(|attr| attr.path.is_ident("packet"));
@@ -55,14 +56,20 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
                 let packet_id_id = value.base10_parse::<u8>()?;
                 let variant_name = packet_variant.ident.clone();
                 get_packet_id_arms.push(quote! {
-                    #packet_ident::#variant_name(_) => #packet_id_id,
+                    #packet_ident::#variant_name(..) => {
+                        return #packet_id_id;
+                    }
                 });
-                let read_method = create_parser(&packet_variant, &packet_ident)?;
-                let write_method = create_writer(&packet_variant)?;
                 let mod_name = format_ident!("{}_handler", variant_name);
+
+                let read_method = create_parser(&packet_variant, &packet_ident)?;
+                let (write_method, arm) = create_writer(&packet_variant, packet_id_id, &packet_ident, &mod_name)?;
+                write_arms.push(arm);
                 let handler = quote! {
                     mod #mod_name {
                         use super::*;
+                        use packet::PacketContent;
+
                         #read_method
                         #write_method
                     }
@@ -76,7 +83,6 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
         }
     }
     let mut read_arms = Vec::new();
-    let mut write_arms = Vec::new();
     for (packet_id, variant) in packet_types.iter() {
         let variant_name = &variant.ident;
         let mod_name = format_ident!("{}_handler", variant_name);
@@ -87,34 +93,24 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
                 Some(packet)
             }
         });
-        write_arms.push(quote! {
-            #packet_ident::#variant_name() => {
-                #mod_name::write(writer)?;
-            }
-        });
     }
     Ok(quote! {
         #(#packet_handlers)*
         impl ::packet::packet::Packet for #packet_ident{
-            type Error = ::packet::PacketReadError;
+            type ReadError = ::packet::PacketReadError;
+            type WriteError = ::packet::PacketWriteError;
             fn get_packet_id(&self) -> u8 {
                 match self {
                     #(#get_packet_id_arms)*
-                    _ => {
-                        panic!("Unknown packet")
-                    } ///TODO: Create a default handler
                 }
             }
-            fn write_payload<Writer: ::std::io::Write>(self, writer: &mut Writer) -> Result<(), Self::Error> {
+            fn write_payload<Writer: ::std::io::Write>(self, writer: &mut Writer) -> Result<(), Self::WriteError> {
                 match self{
                     #(#write_arms)*
-                    _ => {
-                        panic!("Unknown packet")
-                    } ///TODO: Create a default handler
                 }
                 Ok(())
             }
-            fn build_or_none<Reader: ::std::io::Read>(id: u8, reader: &mut Reader) -> Option<Result<Self, Self::Error>> where Self: ::std::marker::Sized{
+            fn build_or_none<Reader: ::std::io::Read>(id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: ::std::marker::Sized{
                 match id {
                     #(#read_arms)*
                     _ => None
@@ -125,43 +121,57 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
     })
 }
 
-    /// Returns a A method name. That takes a reader and Token Stream for the method
-    fn create_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
-        let variant_name = &variant.ident;
-        let fields = &variant.fields;
-        let mut fields_parsers = Vec::new();
-        let mut field_names = Vec::new();
-        for (key, field) in fields.iter().enumerate() {
-            let field_name = format_ident!("field_{}", key);
-            fields_parsers.push(quote! {
+/// Returns a A method name. That takes a reader and Token Stream for the method
+fn create_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
+    let variant_name = &variant.ident;
+    let fields = &variant.fields;
+    let mut fields_parsers = Vec::new();
+    let mut field_names = Vec::new();
+    for (key, field) in fields.iter().enumerate() {
+        let field_name = format_ident!("field_{}", key);
+        fields_parsers.push(quote! {
             let #field_name: #field = PacketContent::read(reader)?;
         });
-            field_names.push(field_name);
-        }
-        let token_stream = quote! {
+        field_names.push(field_name);
+    }
+    let token_stream = quote! {
         pub fn read<Reader: ::std::io::Read>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{
-            use packet::PacketContent;
             #(#fields_parsers)*
             Ok(#value::#variant_name(#(#field_names),*))
         }
     };
-        Ok(token_stream)
-    }
+    Ok(token_stream)
+}
 
-    fn create_writer(variant: &Variant) -> Result<TokenStream> {
-        let fields = &variant.fields;
-        let mut field_writers = Vec::new();
-        for field in fields.iter() {
-            field_writers.push(quote! {
-            #field::write(writer)?;
+fn create_writer(variant: &Variant, packet_id: u8, type_ident: &syn::Ident, mod_name: &syn::Ident) -> Result<(TokenStream, TokenStream)> {
+    let variant_name = &variant.ident;
+
+    let fields = &variant.fields;
+    let mut field_writers = Vec::new();
+    let mut field_names = Vec::new();
+    let mut field_types = Vec::new();
+
+    for (key, field) in fields.iter().enumerate() {
+        let field_name = format_ident!("field_{}", key);
+        field_types.push(&field.ty);
+        field_writers.push(quote! {
+                #field_name.write(writer)?;
         });
-        }
-        let token_stream = quote! {
-        pub fn write<Writer: ::std::io::Write>(writer: &mut Writer) -> Result<(), ::packet::PacketWriteError>{
-            use packet::PacketContent;
+        field_names.push(field_name);
+    }
+    let arm = quote! {
+            #type_ident::#variant_name(#(#field_names),*) => {
+                #mod_name::write(writer,(#(#field_names),*))?;
+            }
+        };
+    let token_stream = quote! {
+        pub fn write<Writer: ::std::io::Write>(writer: &mut Writer,(#(#field_names),*):(#(#field_types),*)) -> Result<(), ::packet::PacketWriteError>{
+            PacketContent::write(&#packet_id,writer)?;
             #(#field_writers)*
             Ok(())
         }
     };
-        Ok(token_stream)
-    }
+
+    Ok((token_stream, arm))
+}
+
