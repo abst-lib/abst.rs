@@ -10,6 +10,7 @@ use crate::{Error};
 use crate::protocol::{ConnectionType,  DTDViaRealm, DirectConnection};
 
 pub mod tmp;
+pub mod handlers;
 
 /// Reads the Packet and decrypts it from the
 pub async fn read_packet_raw<Reader: AsyncReadExt + Unpin>(reader: &mut Reader) -> Result<Bytes, Error> {

@@ -29,7 +29,11 @@ impl From<ValueWriteError<std::io::Error>> for PacketWriteError {
         }
     }
 }
-
+impl From<std::io::Error> for PacketWriteError {
+    fn from(value: std::io::Error) -> Self {
+        PacketWriteError::IOError(value)
+    }
+}
 #[derive(Debug, thiserror::Error)]
 pub enum PacketReadError {
     #[error("Failed to write value: {0}")]

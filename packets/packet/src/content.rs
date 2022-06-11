@@ -7,25 +7,25 @@ use uuid::Uuid;
 pub trait PacketContent {
     /// Read the data from the reader
     fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError>
-    where
-        Self: Sized;
+        where
+            Self: Sized;
     /// Write the data to the writer
     fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError>
-    where
-        Self: Sized;
+        where
+            Self: Sized;
 }
 
 impl PacketContent for u8 {
     fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         rmp::decode::read_u8(reader).map_err(PacketReadError::from)
     }
 
     fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         rmp::encode::write_u8(writer, *self).map_err(PacketWriteError::from)
     }
@@ -33,15 +33,15 @@ impl PacketContent for u8 {
 
 impl PacketContent for u32 {
     fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         rmp::decode::read_u32(reader).map_err(PacketReadError::from)
     }
 
     fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         rmp::encode::write_u32(writer, *self).map_err(PacketWriteError::from)
     }
@@ -49,20 +49,21 @@ impl PacketContent for u32 {
 
 impl PacketContent for u64 {
     fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         rmp::decode::read_u64(reader).map_err(PacketReadError::from)
     }
 
     fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         rmp::encode::write_u64(writer, *self).map_err(PacketWriteError::from)
     }
 }
-impl PacketContent for Uuid{
+
+impl PacketContent for Uuid {
     fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
         let most = rmp::decode::read_u64(reader).map_err(PacketReadError::from)?;
         let least = rmp::decode::read_u64(reader).map_err(PacketReadError::from)?;
@@ -77,7 +78,7 @@ impl PacketContent for Uuid{
     }
 }
 
-impl PacketContent for Vec<u8>{
+impl PacketContent for Vec<u8> {
     fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
         let len: usize = rmp::decode::read_int(reader).map_err(PacketReadError::from)?;
         let mut vec = Vec::with_capacity(len);
@@ -90,7 +91,8 @@ impl PacketContent for Vec<u8>{
         Ok(())
     }
 }
-impl PacketContent for Bytes{
+
+impl PacketContent for Bytes {
     fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
         let len: usize = rmp::decode::read_int(reader).map_err(PacketReadError::from)?;
         let mut bytes = BytesMut::with_capacity(len);
@@ -100,6 +102,17 @@ impl PacketContent for Bytes{
 
     fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
         rmp::encode::write_bin(writer, self.as_ref()).map_err(PacketWriteError::from)?;
+        Ok(())
+    }
+}
+
+impl PacketContent for bool {
+    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        rmp::decode::read_bool(reader).map_err(PacketReadError::from)
+    }
+
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        rmp::encode::write_bool(writer, self.clone()).map_err(PacketWriteError::from)?;
         Ok(())
     }
 }

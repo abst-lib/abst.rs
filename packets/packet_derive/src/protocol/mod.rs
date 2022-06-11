@@ -113,7 +113,7 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
 
             }
 
-            fn write_payload<Writer: Write>(self, writer: &mut Writer) -> Result<(), Self::WriteError>{
+            fn write_payload<Writer: ::std::io::Write>(self, writer: &mut Writer) -> Result<(), Self::WriteError>{
                 match self{
                     #(#write_data)*
                 }
@@ -125,7 +125,7 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
                 ids.contains(&id)
             }
 
-            fn build_if_supported<Reader: Read>(protocol_id: u8, packet_id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: Sized{
+            fn build_if_supported<Reader: ::std::io::Read>(protocol_id: u8, packet_id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: Sized{
               match protocol_id{
                     #(#read_data)*
                     _ => None
