@@ -1,7 +1,6 @@
-use std::fs::OpenOptions;
-use std::io::{Read, Write};
 use packet::{PacketContent, PacketReadError, PacketWriteError};
 use packet_derive::{Packet, Protocol};
+use std::io::{Read, Write};
 
 #[derive(Debug, Protocol)]
 pub enum Protocols {
@@ -21,11 +20,17 @@ pub enum Packets {
 }
 
 impl PacketContent for ComplexPacket {
-    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+    fn read<Reader: Read>(_reader: &mut Reader) -> Result<Self, PacketReadError>
+    where
+        Self: Sized,
+    {
         todo!()
     }
 
-    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+    fn write<Writer: Write>(&self, _writer: &mut Writer) -> Result<(), PacketWriteError>
+    where
+        Self: Sized,
+    {
         todo!()
     }
 }

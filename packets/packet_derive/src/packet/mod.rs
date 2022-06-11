@@ -1,11 +1,10 @@
-use proc_macro::{Ident, Span};
-use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{DataEnum, Field, LitByte, LitInt, Variant};
+use std::collections::HashMap;
 use syn::parse::{Parse, ParseStream};
-use syn::Result;
 use syn::spanned::Spanned;
+use syn::Result;
+use syn::{DataEnum, LitInt, Variant};
 
 mod packet_attrs {
     syn::custom_keyword!(packet_id);
@@ -45,9 +44,15 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
     let mut write_arms = Vec::new();
 
     for packet_variant in data.variants {
-        let packet_id = packet_variant.attrs.iter().find(|attr| attr.path.is_ident("packet"));
+        let packet_id = packet_variant
+            .attrs
+            .iter()
+            .find(|attr| attr.path.is_ident("packet"));
         if packet_id.is_none() {
-            return Err(syn::Error::new(packet_variant.span(), "Packet must have a packet_id attribute"));
+            return Err(syn::Error::new(
+                packet_variant.span(),
+                "Packet must have a packet_id attribute",
+            ));
         }
         let packet_id = packet_id.unwrap();
         let value = packet_id.parse_args::<PacketAttrs>()?;
@@ -63,7 +68,8 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
                 let mod_name = format_ident!("{}_handler", variant_name);
 
                 let read_method = create_parser(&packet_variant, &packet_ident)?;
-                let (write_method, arm) = create_writer(&packet_variant, packet_id_id, &packet_ident, &mod_name)?;
+                let (write_method, arm) =
+                    create_writer(&packet_variant, packet_id_id, &packet_ident, &mod_name)?;
                 write_arms.push(arm);
                 let handler = quote! {
                     mod #mod_name {
@@ -145,7 +151,12 @@ fn create_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
     Ok(token_stream)
 }
 
-fn create_writer(variant: &Variant, packet_id: u8, type_ident: &syn::Ident, mod_name: &syn::Ident) -> Result<(TokenStream, TokenStream)> {
+fn create_writer(
+    variant: &Variant,
+    packet_id: u8,
+    type_ident: &syn::Ident,
+    mod_name: &syn::Ident,
+) -> Result<(TokenStream, TokenStream)> {
     let variant_name = &variant.ident;
 
     let fields = &variant.fields;
@@ -162,10 +173,10 @@ fn create_writer(variant: &Variant, packet_id: u8, type_ident: &syn::Ident, mod_
         field_names.push(field_name);
     }
     let arm = quote! {
-            #type_ident::#variant_name(#(#field_names),*) => {
-                #mod_name::write(writer,(#(#field_names),*))?;
-            }
-        };
+        #type_ident::#variant_name(#(#field_names),*) => {
+            #mod_name::write(writer,(#(#field_names),*))?;
+        }
+    };
     let token_stream = quote! {
         pub fn write<Writer: ::std::io::Write>(writer: &mut Writer,(#(#field_names),*):(#(#field_types),*)) -> Result<(), ::packet::PacketWriteError>{
             PacketContent::write(&#packet_id,writer)?;
@@ -176,4 +187,3 @@ fn create_writer(variant: &Variant, packet_id: u8, type_ident: &syn::Ident, mod_
 
     Ok((token_stream, arm))
 }
-

@@ -1,7 +1,6 @@
 use std::error::Error;
-use std::io::Write;
 use std::io::Read;
-use crate::packet::{Packet};
+use std::io::Write;
 
 /// Exists for when you create a bunch of Protocols on a Variant
 pub trait Protocol {
@@ -14,6 +13,11 @@ pub trait Protocol {
 
     fn supports_protocol_id(id: u8) -> bool;
 
-    fn build_if_supported<Reader: Read>(protocol_id: u8, packet_id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: Sized;
+    fn build_if_supported<Reader: Read>(
+        protocol_id: u8,
+        packet_id: u8,
+        reader: &mut Reader,
+    ) -> Option<Result<Self, Self::ReadError>>
+    where
+        Self: Sized;
 }
-

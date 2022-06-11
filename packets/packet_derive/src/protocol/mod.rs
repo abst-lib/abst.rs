@@ -1,11 +1,10 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
 use quote::__private::ext::RepToTokensExt;
-use syn::{DataEnum, Field, Fields, Ident, LitInt, Variant};
+use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::Result;
 use syn::spanned::Spanned;
-use crate::protocol::packet_attrs::protocol_id;
+use syn::Result;
+use syn::{DataEnum, Field, Fields, Ident, LitInt, Variant};
 
 mod packet_attrs {
     syn::custom_keyword!(protocol_id);
@@ -41,9 +40,15 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
     let mut write_data = Vec::new();
     let mut read_data = Vec::new();
     for protocol_variant in data.variants {
-        let protocol_id = protocol_variant.attrs.iter().find(|attr| attr.path.is_ident("protocol"));
+        let protocol_id = protocol_variant
+            .attrs
+            .iter()
+            .find(|attr| attr.path.is_ident("protocol"));
         if protocol_id.is_none() {
-            return Err(syn::Error::new(protocol_id.span(), "Packet must have a protocol_id attribute"));
+            return Err(syn::Error::new(
+                protocol_id.span(),
+                "Packet must have a protocol_id attribute",
+            ));
         }
         let protocol_id = protocol_id.unwrap();
         let value = protocol_id.parse_args::<ProtocolAttrs>()?;
@@ -64,12 +69,20 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
                 let value = match &protocol_variant.fields {
                     Fields::Unnamed(value) => {
                         if value.unnamed.len() != 1 {
-                            return Err(syn::Error::new(protocol_variant.ident.span(), "Protocol must have a single field"));
+                            return Err(syn::Error::new(
+                                protocol_variant.ident.span(),
+                                "Protocol must have a single field",
+                            ));
                         } else {
                             value.unnamed.first().cloned().unwrap()
                         }
                     }
-                    _ => return Err(syn::Error::new(protocol_variant.ident.span(), "Protocol must have a single field")),
+                    _ => {
+                        return Err(syn::Error::new(
+                            protocol_variant.ident.span(),
+                            "Protocol must have a single field",
+                        ))
+                    }
                 };
                 let read_method = create_reader(&value, &protocol_variant, &type_ident)?;
                 let write_method = create_writer(&value, protocol_id)?;
@@ -122,9 +135,12 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
     })
 }
 
-
 /// Returns a A method name. That takes a reader and Token Stream for the method
-fn create_reader(packet_type: &Field, variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
+fn create_reader(
+    packet_type: &Field,
+    variant: &Variant,
+    value: &syn::Ident,
+) -> Result<TokenStream> {
     let variant_ident = &variant.ident;
     let read_method = quote! {
         pub fn read<Reader: ::std::io::Read>(packet_id: u8, reader: &mut Reader) -> Option<Result<#value, ::packet::PacketReadError>>{
@@ -156,8 +172,3 @@ fn create_writer(packet_type: &Field, protocol_id: u8) -> Result<TokenStream> {
     };
     Ok(write_method)
 }
-
-
-
-
-
