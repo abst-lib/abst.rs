@@ -36,6 +36,10 @@ impl Parse for ProtocolAttrs {
 
 pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStream> {
     let mut handlers = Vec::new();
+    let mut protocol_ids = Vec::new();
+    let mut get_id_arms = Vec::new();
+    let mut write_data = Vec::new();
+    let mut read_data = Vec::new();
     for protocol_variant in data.variants {
         let protocol_id = protocol_variant.attrs.iter().find(|attr| attr.path.is_ident("protocol"));
         if protocol_id.is_none() {
@@ -46,8 +50,17 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
         match value {
             ProtocolAttrs::ProtocolId { value, .. } => {
                 let protocol_id = value.base10_parse::<u8>()?;
+                let variant_name = &protocol_variant.ident;
+                get_id_arms.push(quote! {
+                    #type_ident::#variant_name(..) => { #protocol_id},
+                });
                 let mod_name = format_ident!("{}_handler", protocol_variant.ident);
-
+                write_data.push(quote! {
+                    #type_ident::#variant_name(data) => { #mod_name::write(data, writer)?; },
+                });
+                read_data.push(quote! {
+                    #protocol_id => { return #mod_name::read(packet_id, reader); },
+                });
                 let value = match &protocol_variant.fields {
                     Fields::Unnamed(value) => {
                         if value.unnamed.len() != 1 {
@@ -64,11 +77,13 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
                     mod #mod_name {
                         use super::*;
                         use packet::PacketContent;
+                        use packet::packet::Packet;
                         #read_method
                         #write_method
                     }
                 };
                 handlers.push(handler);
+                protocol_ids.push(protocol_id);
             }
         }
     }
@@ -79,22 +94,29 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
             type ReadError = ::packet::PacketReadError;
             type WriteError = ::packet::PacketWriteError;
             fn get_protocol_id(&self) -> u8{
-                                unimplemented!()
+                match self{
+                    #(#get_id_arms)*
+                }
 
             }
 
             fn write_payload<Writer: Write>(self, writer: &mut Writer) -> Result<(), Self::WriteError>{
-                                unimplemented!()
-
+                match self{
+                    #(#write_data)*
+                }
+                Ok(())
             }
 
             fn supports_protocol_id(id: u8) -> bool{
-                                unimplemented!()
-
+                let mut ids = [#(#protocol_ids),*];
+                ids.contains(&id)
             }
 
             fn build_if_supported<Reader: Read>(protocol_id: u8, packet_id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: Sized{
-                unimplemented!()
+              match protocol_id{
+                    #(#read_data)*
+                    _ => None
+                }
             }
         }
     })
@@ -108,7 +130,13 @@ fn create_reader(packet_type: &Field, variant: &Variant, value: &syn::Ident) -> 
         pub fn read<Reader: ::std::io::Read>(packet_id: u8, reader: &mut Reader) -> Option<Result<#value, ::packet::PacketReadError>>{
            let packet = <#packet_type as ::packet::packet::Packet>::build_or_none(packet_id, reader);
             if let Some(packet) = packet {
-                Ok(#value::#variant_ident(packet))
+                if let Err(error) = packet {
+                    return Some(Err(error));
+                }else if let Ok(packet) = packet {
+                    return Some(Ok(#value::#variant_ident(packet)));
+                }else{
+                    return None;
+                }
             } else {
                 None
             }
@@ -120,8 +148,8 @@ fn create_reader(packet_type: &Field, variant: &Variant, value: &syn::Ident) -> 
 /// Returns a A method name. That takes a reader and Token Stream for the method
 fn create_writer(packet_type: &Field, protocol_id: u8) -> Result<TokenStream> {
     let write_method = quote! {
-        pub fn write<Writer: ::std::io::Write>(data: &#packet_type, writer: &mut Writer) -> Result<(), ::packet::PacketWriteError>{
-            ::packet::PacketContent::write(#protocol_id, writer)?;
+        pub fn write<Writer: ::std::io::Write>(data: #packet_type, writer: &mut Writer) -> Result<(), ::packet::PacketWriteError>{
+            ::packet::PacketContent::write(&#protocol_id, writer)?;
             data.write_payload(writer)?;
             Ok(())
         }

@@ -69,6 +69,8 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
                     mod #mod_name {
                         use super::*;
                         use packet::PacketContent;
+                        use packet::packet::Packet;
+                        use packet::protocol::Protocol;
 
                         #read_method
                         #write_method
