@@ -1,5 +1,7 @@
 use crate::{PacketReadError, PacketWriteError};
 use std::io::{Read, Write};
+use bytes::{Bytes, BytesMut};
+use uuid::Uuid;
 
 // Data Types that Implement this trait can be put inside the Packet Content
 pub trait PacketContent {
@@ -58,5 +60,46 @@ impl PacketContent for u64 {
         Self: Sized,
     {
         rmp::encode::write_u64(writer, *self).map_err(PacketWriteError::from)
+    }
+}
+impl PacketContent for Uuid{
+    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        let most = rmp::decode::read_u64(reader).map_err(PacketReadError::from)?;
+        let least = rmp::decode::read_u64(reader).map_err(PacketReadError::from)?;
+        Ok(Uuid::from_u64_pair(most, least))
+    }
+
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        let (most, least) = self.as_u64_pair();
+        rmp::encode::write_u64(writer, most).map_err(PacketWriteError::from)?;
+        rmp::encode::write_u64(writer, least).map_err(PacketWriteError::from)?;
+        Ok(())
+    }
+}
+
+impl PacketContent for Vec<u8>{
+    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        let len: usize = rmp::decode::read_int(reader).map_err(PacketReadError::from)?;
+        let mut vec = Vec::with_capacity(len);
+        reader.read_to_end(&mut vec).map_err(PacketReadError::from)?;
+        Ok(vec)
+    }
+
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        rmp::encode::write_bin(writer, self.as_ref()).map_err(PacketWriteError::from)?;
+        Ok(())
+    }
+}
+impl PacketContent for Bytes{
+    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        let len: usize = rmp::decode::read_int(reader).map_err(PacketReadError::from)?;
+        let mut bytes = BytesMut::with_capacity(len);
+        reader.take(len as u64).read_exact(&mut bytes).map_err(PacketReadError::from)?;
+        Ok(bytes.freeze())
+    }
+
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        rmp::encode::write_bin(writer, self.as_ref()).map_err(PacketWriteError::from)?;
+        Ok(())
     }
 }

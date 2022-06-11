@@ -9,11 +9,10 @@ edition = "2021"
 uuid = { version = "1.1.0", features = ["v4"] }
 rmp = { git = "https://github.com/abst-lib/msgpack-rust.git", branch = "tokio_async", features = ["tokio"] }
 #rmp = { path = "../msgpack-rust/rmp", features = ["tokio"] }
-light-mp-serde = { git = "https://github.com/abst-lib/light-mp-serde.git" }
 serde = { version = "1.0.137", features = ["derive"] }
-serde_bytes = "0.11.6"
 async-trait = "0.1.56"
 tokio = { version = "1.19.0", features = ["net", "io-util"] }
 bytes = "1.1.0"
 byteorder = "1.4.3"
 paste = "1.0.7"
+packet={path = "packets/packet"}

@@ -1,5 +1,5 @@
-use packet::{PacketContent, PacketReadError, PacketWriteError};
-use packet_derive::{Packet, Protocol};
+use packet::{ PacketReadError, PacketWriteError};
+use packet_derive::{Packet, Protocol, PacketContent};
 use std::io::{Read, Write};
 
 #[derive(Debug, Protocol)]
@@ -8,8 +8,6 @@ pub enum Protocols {
     Standard(Packets),
 }
 
-#[derive(Debug)]
-pub struct ComplexPacket {}
 
 #[derive(Debug, Packet)]
 pub enum Packets {
@@ -19,24 +17,13 @@ pub enum Packets {
     ComplexPacket(ComplexPacket, u8),
 }
 
-impl PacketContent for ComplexPacket {
-    fn read<Reader: Read>(_reader: &mut Reader) -> Result<Self, PacketReadError>
-    where
-        Self: Sized,
-    {
-        todo!()
-    }
-
-    fn write<Writer: Write>(&self, _writer: &mut Writer) -> Result<(), PacketWriteError>
-    where
-        Self: Sized,
-    {
-        todo!()
-    }
+#[derive(Debug, PacketContent)]
+pub struct ComplexPacket {
+    pub a: u8,
+    pub b: u8,
+    pub c: u8,
 }
-
+#[derive(Debug, PacketContent)]
+pub struct InnerPacket(pub u8, pub u8, pub u8);
 #[test]
-pub fn test() {
-    let packet = Packets::Ping(1);
-    println!("{:?}", packet);
-}
+pub fn test() {}

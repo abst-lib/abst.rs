@@ -11,7 +11,6 @@ use std::io::Read;
 use bytes::Bytes;
 use rmp::{decode, encode, Marker};
 pub use error::Error;
-use crate::packet::{ABSTPacket, PacketBuildError, PacketData};
 
 #[cfg(test)]
 mod tests {

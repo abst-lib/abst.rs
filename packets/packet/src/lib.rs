@@ -1,13 +1,14 @@
 use std::error::Error;
 
-use rmp::decode::ValueReadError;
+use rmp::decode::{NumValueReadError, ValueReadError};
 use rmp::encode::ValueWriteError;
-use std::io::Write;
+use std::io::{Read, Write};
 
 mod content;
 pub mod packet;
 pub mod protocol;
 
+pub use packet_derive::{Packet, Protocol, PacketContent};
 use crate::packet::Packet;
 use crate::protocol::Protocol;
 pub use content::PacketContent;
@@ -47,11 +48,27 @@ impl From<ValueReadError<std::io::Error>> for PacketReadError {
     }
 }
 
+impl From<NumValueReadError<std::io::Error>> for PacketReadError {
+    fn from(value: NumValueReadError<std::io::Error>) -> Self {
+        match value {
+            NumValueReadError::InvalidMarkerRead(value) => PacketReadError::IOError(value),
+            NumValueReadError::InvalidDataRead(value) => PacketReadError::IOError(value),
+            v => PacketReadError::ContentError(Box::new(v)),
+        }
+    }
+}
+
+impl From<std::io::Error> for PacketReadError {
+    fn from(value: std::io::Error) -> Self {
+        PacketReadError::IOError(value)
+    }
+}
+
 pub trait IntoPacket {
     fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError>;
 }
 
-impl<Pr: Protocol<ReadError = PacketReadError, WriteError = PacketWriteError>> IntoPacket for Pr {
+impl<Pr: Protocol<ReadError=PacketReadError, WriteError=PacketWriteError>> IntoPacket for Pr {
     fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
         self.write_payload(writer)
     }
@@ -62,10 +79,18 @@ impl IntoPacket for (u8, u8, Vec<u8>) {
         todo!()
     }
 }
-impl<Pk: Packet<ReadError = PacketReadError, WriteError = PacketWriteError>> IntoPacket
-    for (u8, Pk)
+
+impl<Pk: Packet<ReadError=PacketReadError, WriteError=PacketWriteError>> IntoPacket
+for (u8, Pk)
 {
     fn into_packet<Writer: Write>(self, _writer: &mut Writer) -> Result<(), PacketWriteError> {
         todo!()
     }
 }
+
+pub fn read_packet_type<Reader: Read>(value: &mut Reader) -> Result<(u8, u8),PacketReadError> {
+    let protocol = rmp::decode::read_u8(value)?;
+    let packet = rmp::decode::read_u8(value)?;
+    Ok((protocol, packet))
+}
+

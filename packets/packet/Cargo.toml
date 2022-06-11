@@ -6,8 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-packet_derive = { path = "../packet_derive", optional = true }
-rmp= "0.8.11"
+packet_derive = { path = "../packet_derive" }
+rmp = { git = "https://github.com/abst-lib/msgpack-rust.git", branch = "tokio_async", features = ["tokio"] }
 thiserror = "1.0.31"
+uuid = "1.1.1"
+bytes="1.1.0"
 [dev-dependencies]
 packet_derive = { path = "../packet_derive" }

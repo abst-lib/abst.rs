@@ -1,10 +1,10 @@
-use rmp::decode::ValueReadError;
-use rmp::encode::ValueWriteError;
-use crate::packet::{PacketBuildError, PacketReadError};
+
+use packet::{PacketReadError, PacketWriteError};
+
 #[derive(Debug)]
 pub enum Error {
     IO(std::io::Error),
-    PacketBuild(PacketBuildError),
+    PacketBuild(PacketWriteError),
     PacketRead(PacketReadError),
 }
 
@@ -14,11 +14,13 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<PacketBuildError> for Error {
-    fn from(value: PacketBuildError) -> Self {
+impl From<PacketWriteError> for Error {
+    fn from(value: PacketWriteError) -> Self {
         Error::PacketBuild(value)
     }
-}impl From<PacketReadError> for Error {
+}
+
+impl From<PacketReadError> for Error {
     fn from(value: PacketReadError) -> Self {
         Error::PacketRead(value)
     }
@@ -26,24 +28,13 @@ impl From<PacketBuildError> for Error {
 
 impl From<rmp::decode::ValueReadError<std::io::Error>> for Error {
     fn from(value: rmp::decode::ValueReadError<std::io::Error>) -> Self {
-        match value {
-            ValueReadError::InvalidDataRead(io) => {
-                Error::IO(io)
-            }
-            _ => {
-                Error::PacketRead(PacketReadError::ValueReadError(value))
-            }
-        }
+        Error::PacketRead(PacketReadError::from(value))
     }
-}impl From<rmp::encode::ValueWriteError<std::io::Error>> for Error {
+}
+
+impl From<rmp::encode::ValueWriteError<std::io::Error>> for Error {
     fn from(value: rmp::encode::ValueWriteError<std::io::Error>) -> Self {
-        match value {
-            ValueWriteError::InvalidDataWrite(io) => {
-                Error::IO(io)
-            }
-            _ => {
-                Error::PacketBuild(PacketBuildError::ValueWriteError(value))
-            }
-        }
+        Error::PacketBuild(PacketWriteError::from(value))
+
     }
 }
