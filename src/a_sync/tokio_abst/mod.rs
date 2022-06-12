@@ -6,6 +6,7 @@ use rmp::tokio::encode::write_uint;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 use packet::{IntoPacket, PacketContent, read_packet_type};
+use crate::encryption::EncryptionManager;
 use crate::error::Error;
 use crate::protocol::{ConnectionType,  DTDViaRealm, DirectConnection};
 
@@ -24,7 +25,7 @@ pub async fn read_packet_raw<Reader: AsyncReadExt + Unpin>(reader: &mut Reader) 
     Ok(contents.freeze())
 }
 
-pub async fn read_packet<Reader: AsyncReadExt + Unpin, CT: ConnectionType>(reader: &mut Reader, connection_type: &DirectConnection) -> Result<(u8, u8, Bytes), Error> {
+pub async fn read_packet<Reader: AsyncReadExt + Unpin, EM: EncryptionManager>(reader: &mut Reader, em: &EM) -> Result<(u8, u8, Bytes), Error> {
     let mut result = read_packet_raw(reader).await?.reader();
     //TODO decrypt
     let (protocol, packet) = read_packet_type(&mut result)?;
@@ -36,7 +37,7 @@ pub async fn read_packet<Reader: AsyncReadExt + Unpin, CT: ConnectionType>(reade
 
 /// Writes a Packet to the given Writer
 /// Supports any Connection Type
-pub async fn send_packet<Writer: AsyncWriteExt + Unpin,Content: IntoPacket>( writer:&mut  Writer, connection_type: &DirectConnection, content: Content) -> Result<(), Error> {
+pub async fn send_packet<Writer: AsyncWriteExt + Unpin,Content: IntoPacket,EM: EncryptionManager>( writer:&mut  Writer, em: &EM, content: Content) -> Result<(), Error> {
     let mut payload = Vec::new();
     content.into_packet(&mut payload)?;
     write_uint(writer, payload.len() as u64).await?;
@@ -45,12 +46,12 @@ pub async fn send_packet<Writer: AsyncWriteExt + Unpin,Content: IntoPacket>( wri
 }
 
 /// Writes a Packet to the Given Writer. This is for the Device to Realm Connection Type
-pub async fn send_packet_to_device<Writer: AsyncWriteExt + Unpin,Content: IntoPacket>(writer:&mut  Writer, connection_type: &DTDViaRealm,content: Content) -> Result<(), crate::Error> {
+pub async fn send_packet_to_device_via_realm<Writer: AsyncWriteExt + Unpin,Content: IntoPacket,EM: EncryptionManager>(writer:&mut  Writer, em: &EM, connection_type: &DTDViaRealm,content: Content) -> Result<(), crate::Error> {
     todo!() // TODO take in a device setting reference
 }
 
 /// Reads the Packet and decrypts it from the
-pub async fn read_packet_from_realm<Reader: AsyncReadExt + Unpin, CT: ConnectionType>(reader: &mut Reader, connection_type: &DTDViaRealm) -> Result<(u8, u8, Uuid, Bytes), Error> {
+pub async fn read_packet_from_realm<Reader: AsyncReadExt + Unpin, EM: EncryptionManager>(reader: &mut Reader, em: &EM) -> Result<(u8, u8, Uuid, Bytes), Error> {
     let mut reader = read_packet_raw(reader).await?.reader();
     //TODO decrypt
     let (protocol, packet) = read_packet_type(&mut reader)?;

@@ -116,3 +116,16 @@ impl PacketContent for bool {
         Ok(())
     }
 }
+
+impl PacketContent for String {
+    fn read<Reader: Read>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        let len: u32 = rmp::decode::read_str_len(reader).map_err(PacketReadError::from)?;
+        let mut vec = Vec::with_capacity(len as usize);
+        reader.read_exact(&mut vec).map_err(PacketReadError::from)?;
+        Ok(String::from_utf8(vec).map_err(|e|PacketReadError::ContentError(Box::new(e)))?)
+    }
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        rmp::encode::write_str(writer, self.as_ref()).map_err(PacketWriteError::from)?;
+        Ok(())
+    }
+}

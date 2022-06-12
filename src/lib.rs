@@ -14,6 +14,7 @@ pub mod protocol;
 pub mod error;
 /// Tools for handling the encryption provided via Themis
 pub mod encryption;
+pub mod device_manager;
 
 
 pub use error::Error;
