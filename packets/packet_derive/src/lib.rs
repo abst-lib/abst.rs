@@ -34,6 +34,6 @@ pub fn packet_content(stream: TokenStream) -> TokenStream {
         Data::Struct(en) => packet_content::parse_struct(input.ident, en)
             .unwrap_or_else(|e| e.to_compile_error())
             .into(),
-        _ => panic!("PacketContent can only be derived from an enum"),
+        _ => panic!("PacketContent can only be derived from an struct"),
     }
 }

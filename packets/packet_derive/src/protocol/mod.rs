@@ -1,5 +1,4 @@
 use proc_macro2::TokenStream;
-use quote::__private::ext::RepToTokensExt;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;

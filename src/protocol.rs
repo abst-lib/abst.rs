@@ -1,6 +1,5 @@
 use uuid::Uuid;
 use crate::encryption::ThemisEncryptionManager;
-use crate::Error;
 #[derive(Clone)]
 pub enum ConnectionStatus {
     /// The connection is established however needs to be encrypted or paired

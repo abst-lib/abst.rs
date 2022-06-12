@@ -1,22 +1,19 @@
 extern crate core;
 
+/// The functions found within this module are just for sending and receiving packets.
+/// Any handling will need to be done in the handlers module.
+/// This will handle encryption and decryption.
 pub mod a_sync;
-pub mod packet;
-pub mod protocol;
-pub mod error;
-pub mod encryption;
+
+/// The standard Packet and Protocols established in the ABST Standard
 pub mod packets;
+/// Tools for Handling different packet paths
+/// Such as Device to Device. DTDViaRealm.
+pub mod protocol;
+/// Errors that can occur when sending or receiving packets.
+pub mod error;
+/// Tools for handling the encryption provided via Themis
+pub mod encryption;
 
-use std::io::Read;
-use bytes::Bytes;
-use rmp::{decode, encode, Marker};
+
 pub use error::Error;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}

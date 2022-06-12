@@ -7,12 +7,12 @@ edition = "2021"
 
 [dependencies]
 uuid = { version = "1.1.0", features = ["v4"] }
-rmp = { git = "https://github.com/abst-lib/msgpack-rust.git", branch = "tokio_async", features = ["tokio"] }
-#rmp = { path = "../msgpack-rust/rmp", features = ["tokio"] }
 serde = { version = "1.0.137", features = ["derive"] }
 async-trait = "0.1.56"
-tokio = { version = "1.19.0", features = ["net", "io-util"] }
+tokio = { version = "1.19.0", features = ["net", "io-util"] ,optional = true }
 bytes = "1.1.0"
 byteorder = "1.4.3"
-paste = "1.0.7"
+themis = "0.14.0"
+
+rmp = { git = "https://github.com/abst-lib/msgpack-rust.git", branch = "tokio_async", features = ["tokio"] }
 packet={path = "packets/packet"}

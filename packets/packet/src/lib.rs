@@ -13,10 +13,13 @@ use crate::packet::Packet;
 use crate::protocol::Protocol;
 pub use content::PacketContent;
 
+/// A Write Error for a Packet
 #[derive(Debug, thiserror::Error)]
 pub enum PacketWriteError {
+    /// IO Error
     #[error("Failed to write value: {0}")]
     IOError(std::io::Error),
+    /// Any internal error
     #[error("Failed to write value: {0}")]
     ContentError(Box<dyn Error + Send + Sync + 'static>),
 }
@@ -29,15 +32,20 @@ impl From<ValueWriteError<std::io::Error>> for PacketWriteError {
         }
     }
 }
+
 impl From<std::io::Error> for PacketWriteError {
     fn from(value: std::io::Error) -> Self {
         PacketWriteError::IOError(value)
     }
 }
+
+/// A Read Error for a Packet
 #[derive(Debug, thiserror::Error)]
 pub enum PacketReadError {
+    /// IO Error
     #[error("Failed to write value: {0}")]
     IOError(std::io::Error),
+    /// Could be any internal Error
     #[error("Failed to write value: {0}")]
     ContentError(Box<dyn Error + Send + Sync + 'static>),
 }
@@ -68,6 +76,7 @@ impl From<std::io::Error> for PacketReadError {
     }
 }
 
+/// A Type that can be turned into an Packet
 pub trait IntoPacket {
     fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError>;
 }
@@ -79,20 +88,24 @@ impl<Pr: Protocol<ReadError=PacketReadError, WriteError=PacketWriteError>> IntoP
 }
 
 impl IntoPacket for (u8, u8, Vec<u8>) {
-    fn into_packet<Writer: Write>(self, _writer: &mut Writer) -> Result<(), PacketWriteError> {
-        todo!()
+    fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
+        rmp::encode::write_u8(writer, self.0)?;
+        rmp::encode::write_u8(writer, self.1)?;
+        rmp::encode::write_bin(writer, &self.2)?;
+        Ok(())
     }
 }
 
 impl<Pk: Packet<ReadError=PacketReadError, WriteError=PacketWriteError>> IntoPacket
 for (u8, Pk)
 {
-    fn into_packet<Writer: Write>(self, _writer: &mut Writer) -> Result<(), PacketWriteError> {
-        todo!()
+    fn into_packet<Writer: Write>(self, writer: &mut Writer) -> Result<(), PacketWriteError> {
+        rmp::encode::write_u8(writer, self.0)?;
+        self.1.write_payload(writer)
     }
 }
 
-pub fn read_packet_type<Reader: Read>(value: &mut Reader) -> Result<(u8, u8),PacketReadError> {
+pub fn read_packet_type<Reader: Read>(value: &mut Reader) -> Result<(u8, u8), PacketReadError> {
     let protocol = rmp::decode::read_u8(value)?;
     let packet = rmp::decode::read_u8(value)?;
     Ok((protocol, packet))

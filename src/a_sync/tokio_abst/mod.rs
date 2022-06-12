@@ -6,11 +6,10 @@ use rmp::tokio::encode::write_uint;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 use packet::{IntoPacket, PacketContent, read_packet_type};
-use crate::{Error};
+use crate::error::Error;
 use crate::protocol::{ConnectionType,  DTDViaRealm, DirectConnection};
 
 pub mod tmp;
-pub mod handlers;
 
 /// Reads the Packet and decrypts it from the
 pub async fn read_packet_raw<Reader: AsyncReadExt + Unpin>(reader: &mut Reader) -> Result<Bytes, Error> {
@@ -19,7 +18,7 @@ pub async fn read_packet_raw<Reader: AsyncReadExt + Unpin>(reader: &mut Reader) 
     let mut contents = BytesMut::with_capacity(result);
     // Check for data that could need to be read
     while contents.len() < result {
-        reader.read(&mut contents).await.map_err(crate::Error::from)?;
+        reader.read(&mut contents).await.map_err(Error::from)?;
     }
 
     Ok(contents.freeze())
@@ -31,7 +30,7 @@ pub async fn read_packet<Reader: AsyncReadExt + Unpin, CT: ConnectionType>(reade
     let (protocol, packet) = read_packet_type(&mut result)?;
     let size = read_bin_len(&mut result)? as usize;
     let mut content = BytesMut::with_capacity(size);
-    reader.take(size as u64).read_exact(&mut content).await.map_err(crate::Error::from)?;
+    reader.take(size as u64).read_exact(&mut content).await.map_err(Error::from)?;
     Ok((protocol, packet, content.freeze()))
 }
 
@@ -42,7 +41,7 @@ pub async fn send_packet<Writer: AsyncWriteExt + Unpin,Content: IntoPacket>( wri
     content.into_packet(&mut payload)?;
     write_uint(writer, payload.len() as u64).await?;
     // TODO encrypt
-    writer.write_all(&payload).await.map_err(crate::Error::from)
+    writer.write_all(&payload).await.map_err(Error::from)
 }
 
 /// Writes a Packet to the Given Writer. This is for the Device to Realm Connection Type

@@ -1,5 +1,8 @@
 pub mod dtd;
 pub mod realm;
+/// Default Handlers for the packets established here
+pub mod handlers;
+
 use packet::Protocol;
 use crate::packets::dtd::DeviceToDevicePackets;
 use crate::packets::realm::RealmPacket;
@@ -7,11 +10,11 @@ use crate::packets::realm::RealmPacket;
 #[derive(Protocol)]
 pub enum Protocol {
     #[protocol(protocol_id = 0x00)]
-    DeviceToDevice (DeviceToDevicePackets),
+    DeviceToDevice(DeviceToDevicePackets),
     //#[protocol(protocol_id = 1)]
     //DeviceToPeer (),
     #[protocol(protocol_id = 0x02)]
-    DeviceToRealm (RealmPacket),
+    DeviceToRealm(RealmPacket),
 }
 
 pub trait PacketType {
