@@ -3,9 +3,13 @@ pub mod dtd;
 pub mod handlers;
 pub mod realm;
 
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::io::{BufRead, Write};
 use crate::packets::dtd::DeviceToDevicePackets;
 use crate::packets::realm::RealmPacket;
-use packet::Protocol;
+use packet::{PacketContent, PacketReadError, PacketWriteError, Protocol};
+use rmp::Marker;
 
 #[derive(Protocol)]
 pub enum Protocol {
@@ -19,4 +23,102 @@ pub enum Protocol {
 
 pub trait PacketType {
     fn packet_id(&self) -> u8;
+}
+
+/// An Error Packet Response
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorPacket {
+    /// Error that contains a reference to the error causing packet
+    ErrorWithReference {
+        reference_protocol: u8,
+        reference_packet: u8,
+        error_code: u8,
+        error_message: Option<String>,
+    },
+    /// No Reference to what caused the error
+    ErrorNoReference {
+        error_code: u8,
+        error_message: Option<String>,
+    },
+}
+
+impl Display for ErrorPacket {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorPacket::ErrorWithReference {
+                reference_protocol,
+                reference_packet,
+                error_code,
+                error_message,
+            } => write!(
+                f,
+                "Error with reference: {} {} {} {:?}",
+                reference_protocol,
+                reference_packet,
+                error_code,
+                error_message.as_ref()
+            ),
+            ErrorPacket::ErrorNoReference {
+                error_code,
+                error_message,
+            } => write!(
+                f,
+                "Error without reference: {} {:?}",
+                error_code,
+                error_message.as_ref()
+            ),
+        }
+    }
+}
+
+impl Error for ErrorPacket {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
+impl PacketContent for ErrorPacket {
+    fn read<Reader: BufRead>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        let buf = reader.fill_buf()?;
+        if let Marker::True = Marker::from_u8(buf[0]) {
+            Ok(Self::ErrorWithReference {
+                reference_protocol: rmp::decode::read_u8(reader)?,
+                reference_packet: rmp::decode::read_u8(reader)?,
+                error_code: rmp::decode::read_u8(reader)?,
+                error_message: PacketContent::read(reader)?,
+            })
+        } else {
+            Ok(Self::ErrorNoReference {
+                error_code: rmp::decode::read_u8(reader)?,
+                error_message: PacketContent::read(reader)?,
+            })
+        }
+    }
+
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        rmp::encode::write_u8(writer, 1)?;
+        match self {
+            Self::ErrorWithReference {
+                reference_protocol,
+                reference_packet,
+                error_code,
+                error_message,
+            } => {
+                rmp::encode::write_bool(writer, false)?;
+                rmp::encode::write_u8(writer, *reference_protocol)?;
+                rmp::encode::write_u8(writer, *reference_packet)?;
+                rmp::encode::write_u8(writer, *error_code)?;
+                PacketContent::write(error_message, writer)?;
+            }
+            Self::ErrorNoReference {
+                error_code,
+                error_message,
+            } => {
+                rmp::encode::write_bool(writer, false)?;
+                rmp::encode::write_u8(writer, *error_code)?;
+                PacketContent::write(error_message, writer)?;
+            }
+        }
+        Ok(())
+    }
 }

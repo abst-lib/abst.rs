@@ -8,6 +8,7 @@ use crate::protocol::{ConnectionStatus, DTDViaRealm, DirectConnection};
 use bytes::Bytes;
 use rand::Rng;
 use std::io::Cursor;
+use log::warn;
 use themis::keygen::gen_ec_key_pair;
 use themis::keys::{EcdsaKeyPair, EcdsaPublicKey};
 use themis::secure_message::SecureMessage;
@@ -44,7 +45,7 @@ pub struct DefaultProtocolHandler<
     'dm,
     Error,
     PD: PairedDevice<DynamicEncryptionManager>,
-    DM: DeviceManager<Error = Error, PD = PD>,
+    DM: DeviceManager<Error=Error, PD=PD>,
 > {
     device_manager: &'dm mut DM,
     phantom: std::marker::PhantomData<Error>,
@@ -52,13 +53,13 @@ pub struct DefaultProtocolHandler<
 }
 
 impl<
-        'dm,
-        Error,
-        PD: PairedDevice<DynamicEncryptionManager>,
-        DM: DeviceManager<Error = Error, PD = PD>,
-    > DefaultProtocolHandler<'dm, Error, PD, DM>
-where
-    Error: std::error::Error + std::convert::From<crate::encryption::EncryptionError>,
+    'dm,
+    Error,
+    PD: PairedDevice<DynamicEncryptionManager>,
+    DM: DeviceManager<Error=Error, PD=PD>,
+> DefaultProtocolHandler<'dm, Error, PD, DM>
+    where
+        Error: std::error::Error + std::convert::From<crate::encryption::EncryptionError>,
 {
     pub fn new(device_manager: &'dm mut DM) -> Self {
         DefaultProtocolHandler {
@@ -188,7 +189,7 @@ where
                             }
                             let (my_private, my_public) = my_key.split();
                             let encrypted_key_again = if let Some(other_test_string) =
-                                other_test_string
+                            other_test_string
                             {
                                 let my_test = test.as_ref().unwrap();
 
@@ -319,7 +320,7 @@ where
                                 DeviceToDevicePackets::KeyCheck(encrypt_message),
                             )))
                         } else if let ConnectionStatus::CheckingKeys { random_bytes } =
-                            &context.status
+                        &context.status
                         {
                             let result =
                                 self.device_manager.get_paired_device(&direct.device_id)?;
@@ -376,6 +377,14 @@ where
                 } else {
                     todo!("Implement Error")
                 }
+            }
+            DeviceToDevicePackets::Heartbeat => {
+                //IDK
+                Ok(Response::Nothing)
+            }
+            DeviceToDevicePackets::Error(error) => {
+                warn!("Error: {:?}", error);
+                Ok(Response::Nothing)
             }
         }
     }

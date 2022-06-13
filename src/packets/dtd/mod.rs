@@ -1,13 +1,18 @@
 use bytes::Bytes;
 use packet::Packet;
 use uuid::Uuid;
+use crate::packets::ErrorPacket;
 
 /// Device to Device Packets
 /// Packet ID's 0-3 are not encrypted and can only be used before the session is marked as secure
 #[derive(Clone, Packet)]
 pub enum DeviceToDevicePackets {
-    /// Device ID and are they paired or not
     #[packet(packet_id = 0)]
+    Heartbeat,
+    #[packet(packet_id = 1)]
+    Error(ErrorPacket),
+    /// Device ID and are they paired or not
+    #[packet(packet_id = 2)]
     Hello {
         /// Your device ID
         device_id: Uuid,
@@ -15,7 +20,7 @@ pub enum DeviceToDevicePackets {
         paired: bool,
     },
     /// Device ID and the Byte Array containing the Public Key
-    #[packet(packet_id = 1)]
+    #[packet(packet_id = 3)]
     PairRequest {
         /// Your Device Name
         device_name: String,
@@ -32,15 +37,15 @@ pub enum DeviceToDevicePackets {
     ///
     /// Once the other side has a received the key they will use the public key to send you their key. And at this point both devices are paired
     /// They can move onto the Key Check to mark the session as secure.
-    #[packet(packet_id = 2)]
+    #[packet(packet_id = 4)]
     SendKey {
         public_key: Bytes,
         test: Option<Bytes>,
     },
     /// Send to the other device. Only encrypt the data inside the packets. leave the packet id and protocol id alone.
     /// The other side will make sure they can decrypt the data. and do the same result back to you. At this point your session is secure.
-    #[packet(packet_id = 3)]
+    #[packet(packet_id = 5)]
     KeyCheck(Bytes),
-    #[packet(packet_id = 4)]
+    #[packet(packet_id = 6)]
     KeyCheckResponse(bool),
 }
