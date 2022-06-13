@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::io::Read;
+use std::io::BufRead;
 use std::io::Write;
 
 /// Exists for when you create a bunch of Protocols on a Variant
@@ -17,7 +17,7 @@ pub trait Protocol {
     /// # Returns
     /// * `Some(Ok(Self))` if the Protocol ID and Packet is supported
     /// * `None` if the Protocol ID and Packet is not supported
-    fn build_if_supported<Reader: Read>(
+    fn build_if_supported<Reader: BufRead>(
         protocol_id: u8,
         packet_id: u8,
         reader: &mut Reader,

@@ -67,7 +67,7 @@ pub(crate) fn parse_struct(type_ident: Ident, data: DataStruct) -> Result<TokenS
 
     Ok(quote! {
         impl ::packet::PacketContent for #type_ident {
-            fn read<Reader: ::std::io::Read>(reader: &mut Reader) -> Result<Self, PacketReadError>
+            fn read<Reader: ::std::io::BufRead>(reader: &mut Reader) -> Result<Self, PacketReadError>
                 where Self: Sized,
             {
                 #read_func

@@ -3,8 +3,8 @@ use quote::{format_ident, quote};
 use std::collections::HashMap;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
-use syn::{Fields, Result};
 use syn::{DataEnum, LitInt, Variant};
+use syn::{Fields, FieldsNamed, FieldsUnnamed, Result};
 
 mod packet_attrs {
     syn::custom_keyword!(packet_id);
@@ -60,25 +60,58 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
             PacketAttrs::PacketId { value, .. } => {
                 let packet_id_id = value.base10_parse::<u8>()?;
                 let variant_name = packet_variant.ident.clone();
-                if packet_variant.fields.is_empty() {
-                    get_packet_id_arms.push(quote! {
-                    #packet_ident::#variant_name => {
-                        return #packet_id_id;
+                let packet_id_arm = match packet_variant.fields {
+                    Fields::Named(_) => {
+                        quote! {
+                            #packet_ident::#variant_name{..} => {
+                                return #packet_id_id;
+                            }
+                        }
                     }
-                });
-                } else {
-                    get_packet_id_arms.push(quote! {
-                    #packet_ident::#variant_name(..) => {
-                        return #packet_id_id;
+                    Fields::Unnamed(_) => {
+                        quote! {
+                            #packet_ident::#variant_name(..) => {
+                                return #packet_id_id;
+                            }
+                        }
                     }
-                });
-                }
-
+                    Fields::Unit => {
+                        quote! {
+                            #packet_ident::#variant_name => {
+                                return #packet_id_id;
+                            }
+                        }
+                    }
+                };
+                get_packet_id_arms.push(packet_id_arm);
                 let mod_name = format_ident!("{}_handler", variant_name);
 
-                let read_method = create_parser(&packet_variant, &packet_ident)?;
-                let (write_method, arm) =
-                    create_writer(&packet_variant, packet_id_id, &packet_ident, &mod_name)?;
+                let read_method = match &packet_variant.fields {
+                    Fields::Named(named) => named_parser(&packet_variant, &packet_ident, named),
+                    Fields::Unnamed(unamed) => {
+                        unamed_parser(&packet_variant, &packet_ident, unamed)
+                    }
+                    Fields::Unit => unit_parser(&packet_variant, &packet_ident),
+                }?;
+                let (write_method, arm) = match &packet_variant.fields {
+                    Fields::Named(named) => named_writer(
+                        &packet_variant,
+                        packet_id_id,
+                        &packet_ident,
+                        &mod_name,
+                        named,
+                    ),
+                    Fields::Unnamed(unamed) => unamed_writer(
+                        &packet_variant,
+                        packet_id_id,
+                        &packet_ident,
+                        &mod_name,
+                        unamed,
+                    ),
+                    Fields::Unit => {
+                        unit_writer(&packet_variant, packet_id_id, &packet_ident, &mod_name)
+                    }
+                }?;
                 write_arms.push(arm);
                 let handler = quote! {
                     mod #mod_name {
@@ -127,7 +160,7 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
                 }
                 Ok(())
             }
-            fn build_or_none<Reader: ::std::io::Read>(id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: ::std::marker::Sized{
+            fn build_or_none<Reader: ::std::io::BufRead>(id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: ::std::marker::Sized{
                 match id {
                     #(#read_arms)*
                     _ => None
@@ -139,19 +172,15 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
 }
 
 /// Returns a A method name. That takes a reader and Token Stream for the method
-fn create_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
+fn unamed_parser(
+    variant: &Variant,
+    value: &syn::Ident,
+    fields: &FieldsUnnamed,
+) -> Result<TokenStream> {
     let variant_name = &variant.ident;
-    let fields = &variant.fields;
     let mut fields_parsers = Vec::new();
     let mut field_names = Vec::new();
-    if fields.is_empty() {
-        return Ok(quote! {
-        pub fn read<Reader: ::std::io::Read>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{
-                Ok(#value::#variant_name)
-            }
-        });
-    }
-    for (key, field) in fields.iter().enumerate() {
+    for (key, field) in fields.unnamed.iter().enumerate() {
         let field_name = format_ident!("field_{}", key);
         fields_parsers.push(quote! {
             let #field_name: #field = PacketContent::read(reader)?;
@@ -159,7 +188,7 @@ fn create_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
         field_names.push(field_name);
     }
     let token_stream = quote! {
-        pub fn read<Reader: ::std::io::Read>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{
+        pub fn read<Reader: ::std::io::BufRead>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{
             #(#fields_parsers)*
             Ok(#value::#variant_name(#(#field_names),*))
         }
@@ -167,48 +196,69 @@ fn create_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
     Ok(token_stream)
 }
 
-fn create_writer(
+fn named_parser(
+    variant: &Variant,
+    value: &syn::Ident,
+    fields: &FieldsNamed,
+) -> Result<TokenStream> {
+    let variant_name = &variant.ident;
+    let mut fields_parsers = Vec::new();
+    for (key, field) in fields.named.iter().enumerate() {
+        let field_name = field
+            .ident
+            .as_ref()
+            .ok_or_else(|| syn::Error::new(field.span(), "Field must have a name"))?;
+        let type_name = &field.ty;
+        fields_parsers.push(quote! {
+            #field_name:  PacketContent::read(reader)?
+        });
+    }
+    let token_stream = quote! {
+        pub fn read<Reader: ::std::io::BufRead>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{
+            Ok(#value::#variant_name{
+             #(#fields_parsers),*
+            })
+        }
+    };
+    Ok(token_stream)
+}
+
+fn unit_parser(variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
+    let variant_name = &variant.ident;
+    let token_stream = quote! {
+        pub fn read<Reader: ::std::io::BufRead>(reader: &mut Reader) -> Result<#value, ::packet::PacketReadError>{
+            Ok(#value::#variant_name)
+        }
+    };
+    Ok(token_stream)
+}
+
+fn unamed_writer(
     variant: &Variant,
     packet_id: u8,
     type_ident: &syn::Ident,
     mod_name: &syn::Ident,
+    fields: &FieldsUnnamed,
 ) -> Result<(TokenStream, TokenStream)> {
     let variant_name = &variant.ident;
 
-    let fields = &variant.fields;
     let mut field_writers = Vec::new();
     let mut field_names = Vec::new();
     let mut field_types = Vec::new();
-    match fields {
-        Fields::Unit => {
-            let token_stream = quote! {
-            pub fn write<Writer: ::std::io::Write>(writer: &mut Writer) -> Result<(), ::packet::PacketWriteError> {
-                PacketContent::write(&#packet_id,writer)?;
-                Ok(())
-            }
-            };
-            let arm = quote! {
-            #type_ident::#variant_name => {
-                #mod_name::write(writer)?;
-            }
-        };
-            return Ok((token_stream, arm));
-        }
-        fields => {
-            for (key, field) in fields.iter().enumerate() {
-                let field_name = format_ident!("field_{}", key);
-                field_types.push(&field.ty);
-                field_writers.push(quote! {
+    for (key, field) in fields.unnamed.iter().enumerate() {
+        let field_name = format_ident!("field_{}", key);
+        field_types.push(&field.ty);
+        field_writers.push(quote! {
                 #field_name.write(writer)?;
         });
-                field_names.push(field_name);
+        field_names.push(field_name);
+    }
+    let arm = quote! {
+            #type_ident::#variant_name(#(#field_names),*) => {
+                #mod_name::write(writer,(#(#field_names),*))?;
             }
-            let arm = quote! {
-        #type_ident::#variant_name(#(#field_names),*) => {
-            #mod_name::write(writer,(#(#field_names),*))?;
-        }
     };
-            let token_stream = quote! {
+    let token_stream = quote! {
         pub fn write<Writer: ::std::io::Write>(writer: &mut Writer,(#(#field_names),*):(#(#field_types),*)) -> Result<(), ::packet::PacketWriteError>{
             PacketContent::write(&#packet_id,writer)?;
             #(#field_writers)*
@@ -216,7 +266,70 @@ fn create_writer(
         }
     };
 
-            Ok((token_stream, arm))
-        }
+    Ok((token_stream, arm))
+}
+
+fn unit_writer(
+    variant: &Variant,
+    packet_id: u8,
+    type_ident: &syn::Ident,
+    mod_name: &syn::Ident,
+) -> Result<(TokenStream, TokenStream)> {
+    let variant_name = &variant.ident;
+
+    let token_stream = quote! {
+    pub fn write<Writer: ::std::io::Write>(writer: &mut Writer) -> Result<(), ::packet::PacketWriteError> {
+        PacketContent::write(&#packet_id,writer)?;
+        Ok(())
     }
+    };
+    let arm = quote! {
+        #type_ident::#variant_name => {
+            #mod_name::write(writer)?;
+        }
+    };
+    return Ok((token_stream, arm));
+}
+
+fn named_writer(
+    variant: &Variant,
+    packet_id: u8,
+    type_ident: &syn::Ident,
+    mod_name: &syn::Ident,
+    fields: &FieldsNamed,
+) -> Result<(TokenStream, TokenStream)> {
+    let variant_name = &variant.ident;
+
+    let mut field_writers = Vec::new();
+    let mut field_names = Vec::new();
+    let mut field_types = Vec::new();
+    for field in fields.named.iter() {
+        let field_name = field
+            .ident
+            .as_ref()
+            .ok_or_else(|| syn::Error::new(field.span(), "Field must have a name"))?;
+        field_writers.push(quote! {
+            #field_name.write(writer)?;
+        });
+        field_names.push(field_name);
+        field_types.push(&field.ty);
+    }
+    let arm = quote! {
+        #type_ident::#variant_name{
+            #(#field_names),*
+        } => {
+            #mod_name::write(writer,(#(#field_names),*))?;
+        }
+    };
+
+    let token_stream = quote! {
+             pub fn write<Writer: ::std::io::Write>(writer: &mut Writer,(#(#field_names),*):(#(#field_types),*)) -> Result<(), ::packet::PacketWriteError>{
+        PacketContent::write(&#packet_id,writer)?;
+        #(#field_writers)*
+        Ok(())
+    }
+
+    };
+
+    Ok((token_stream, arm))
 }

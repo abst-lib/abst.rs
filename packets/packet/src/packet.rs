@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::io::{Read, Write};
+use std::io::{BufRead, Write};
 
 /// Represents a Packet that can be sent over the network for ABST
 pub trait Packet {
@@ -16,7 +16,7 @@ pub trait Packet {
     /// # Returns
     /// * `Some(Ok(Self))` if the packet ID and content is supported
     /// * `None` if the packet ID and content is not supported
-    fn build_or_none<Reader: Read>(
+    fn build_or_none<Reader: BufRead>(
         id: u8,
         reader: &mut Reader,
     ) -> Option<Result<Self, Self::ReadError>>

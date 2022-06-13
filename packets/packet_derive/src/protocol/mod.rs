@@ -124,7 +124,7 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
                 ids.contains(&id)
             }
 
-            fn build_if_supported<Reader: ::std::io::Read>(protocol_id: u8, packet_id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: Sized{
+            fn build_if_supported<Reader: ::std::io::BufRead>(protocol_id: u8, packet_id: u8, reader: &mut Reader) -> Option<Result<Self, Self::ReadError>> where Self: Sized{
               match protocol_id{
                     #(#read_data)*
                     _ => None
@@ -142,7 +142,7 @@ fn create_reader(
 ) -> Result<TokenStream> {
     let variant_ident = &variant.ident;
     let read_method = quote! {
-        pub fn read<Reader: ::std::io::Read>(packet_id: u8, reader: &mut Reader) -> Option<Result<#value, ::packet::PacketReadError>>{
+        pub fn read<Reader: ::std::io::BufRead>(packet_id: u8, reader: &mut Reader) -> Option<Result<#value, ::packet::PacketReadError>>{
            let packet = <#packet_type as ::packet::packet::Packet>::build_or_none(packet_id, reader);
             if let Some(packet) = packet {
                 if let Err(error) = packet {

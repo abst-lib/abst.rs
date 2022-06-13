@@ -83,7 +83,7 @@ impl<'dm, Error, PD: PairedDevice<DynamicEncryptionManager>, DM: DeviceManager<E
                     })
                 }
             }
-            DeviceToDevicePackets::PairRequest(_) => {
+            DeviceToDevicePackets::PairRequest {..} => {
                 todo!("Handle Hello")
             }
             DeviceToDevicePackets::KeyCheck(check_message) => {

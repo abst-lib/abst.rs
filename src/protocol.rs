@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use uuid::Uuid;
 use crate::encryption::{DynamicEncryptionManager, ThemisEncryptionManager};
 
@@ -6,8 +7,11 @@ pub enum ConnectionStatus {
     /// The connection is established however needs to be encrypted or paired
     Entry,
     /// Current Pairing
-    /// Variables are used by Themis for pairing and securely sharing the keys
     Pairing {
+        public_key: Bytes,
+        private_key: Bytes,
+
+        key_b: Option<Bytes>,
 
     },
     /// The connection is still needing to be encrypted
