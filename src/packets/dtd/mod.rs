@@ -44,4 +44,3 @@ pub enum DeviceToDevicePackets {
     #[packet(packet_id = 4)]
     KeyCheckResponse(bool),
 }
-

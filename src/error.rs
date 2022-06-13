@@ -1,6 +1,5 @@
-
-use packet::{PacketReadError, PacketWriteError};
 use crate::encryption::EncryptionError;
+use packet::{PacketReadError, PacketWriteError};
 
 #[derive(Debug)]
 pub enum Error {
@@ -37,7 +36,6 @@ impl From<rmp::decode::ValueReadError<std::io::Error>> for Error {
 impl From<rmp::encode::ValueWriteError<std::io::Error>> for Error {
     fn from(value: rmp::encode::ValueWriteError<std::io::Error>) -> Self {
         Error::PacketBuild(PacketWriteError::from(value))
-
     }
 }
 impl From<EncryptionError> for Error {

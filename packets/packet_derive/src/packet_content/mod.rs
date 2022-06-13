@@ -1,9 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::parse::{Parse, ParseStream};
-use syn::spanned::Spanned;
+
 use syn::{DataStruct, Result};
-use syn::{Field, Fields, Ident, LitInt, Variant};
+use syn::{Fields, Ident};
 
 pub(crate) fn parse_struct(type_ident: Ident, data: DataStruct) -> Result<TokenStream> {
     let (write_func, read_func) = match data.fields {
@@ -42,9 +41,9 @@ pub(crate) fn parse_struct(type_ident: Ident, data: DataStruct) -> Result<TokenS
                 field_writes.push(quote! {
                     self.#key.write(writer)?;
                 });
-                field_reads.push((quote! {
+                field_reads.push(quote! {
                     let #value = #field_type::read(reader)?;
-                }));
+                });
                 values.push(value);
             }
             let read_func = quote! {

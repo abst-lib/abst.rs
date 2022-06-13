@@ -5,9 +5,6 @@ use bytes::buf::Reader;
 use rmp::Marker;
 use uuid::Uuid;
 
-pub struct PacketReader{
-    pub reader: Reader<Bytes>,
-}
 
 // Data Types that Implement this trait can be put inside the Packet Content
 pub trait PacketContent {

@@ -1,11 +1,11 @@
 pub mod dtd;
-pub mod realm;
 /// Default Handlers for the packets established here
 pub mod handlers;
+pub mod realm;
 
-use packet::Protocol;
 use crate::packets::dtd::DeviceToDevicePackets;
 use crate::packets::realm::RealmPacket;
+use packet::Protocol;
 
 #[derive(Protocol)]
 pub enum Protocol {

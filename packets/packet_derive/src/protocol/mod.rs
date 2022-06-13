@@ -8,7 +8,7 @@ use syn::{DataEnum, Field, Fields, Ident, LitInt, Variant};
 mod packet_attrs {
     syn::custom_keyword!(protocol_id);
 }
-
+#[warn(dead_code)]
 enum ProtocolAttrs {
     ProtocolId {
         value_token: packet_attrs::protocol_id,

@@ -1,16 +1,14 @@
 use bytes::Bytes;
-use themis::keys::{EcdsaKeyPair, EcdsaPrivateKey, EcdsaPublicKey};
+use themis::keys::{EcdsaPrivateKey, EcdsaPublicKey};
 use uuid::Uuid;
-use crate::encryption::{ThemisEncryptionManager};
 
 #[derive(Clone)]
 pub enum ConnectionStatus {
     /// The connection is established however needs to be encrypted or paired
     Entry,
     /// You send a pair request and waiting for a response
-    PendingPairRequest{
+    PendingPairRequest {
         test: Option<Bytes>,
-
     },
     /// Current Pairing
     Pairing {
@@ -23,8 +21,8 @@ pub enum ConnectionStatus {
     },
     /// The connection is still needing to be encrypted
     PendingEncryption,
-    
-    CheckingKeys{
+
+    CheckingKeys {
         random_bytes: Bytes,
     },
     /// The connection is ready to use.
@@ -40,11 +38,9 @@ pub struct DirectConnection {
 
 impl ConnectionType for DirectConnection {}
 
-
 #[derive(Clone)]
 pub struct DTDViaRealm {
     pub device_id: Uuid,
-
 }
 
 impl ConnectionType for DTDViaRealm {}

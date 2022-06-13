@@ -10,7 +10,7 @@ mod packet_attrs {
     syn::custom_keyword!(packet_id);
     syn::custom_keyword!(default);
 }
-
+#[warn(dead_code)]
 enum PacketAttrs {
     PacketId {
         value_token: packet_attrs::packet_id,
@@ -203,12 +203,12 @@ fn named_parser(
 ) -> Result<TokenStream> {
     let variant_name = &variant.ident;
     let mut fields_parsers = Vec::new();
-    for (key, field) in fields.named.iter().enumerate() {
+    for (_key, field) in fields.named.iter().enumerate() {
         let field_name = field
             .ident
             .as_ref()
             .ok_or_else(|| syn::Error::new(field.span(), "Field must have a name"))?;
-        let type_name = &field.ty;
+        let _type_name = &field.ty;
         fields_parsers.push(quote! {
             #field_name:  PacketContent::read(reader)?
         });
@@ -288,7 +288,7 @@ fn unit_writer(
             #mod_name::write(writer)?;
         }
     };
-    return Ok((token_stream, arm));
+    Ok((token_stream, arm))
 }
 
 fn named_writer(

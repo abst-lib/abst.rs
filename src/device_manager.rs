@@ -1,9 +1,8 @@
-use std::io::Cursor;
 use bytes::Bytes;
-use themis::keys::EcdsaKeyPair;
-use uuid::{Uuid};
-use crate::encryption::{EncryptionManager, EncryptionSet, ThemisEncryptionManager};
-use crate::Error;
+use std::io::Cursor;
+
+use crate::encryption::{EncryptionManager, EncryptionSet};
+use uuid::Uuid;
 
 /// The Manger of Paired Devices
 pub trait DeviceManager {
@@ -22,9 +21,16 @@ pub trait DeviceManager {
     /// Gets the paired devices
     fn get_paired_devices<'device>(&self) -> Result<Vec<&'device Self::PD>, Self::Error>;
     /// Gets the paired device
-    fn get_paired_device<'device>(&self, device_id: &Uuid) -> Result<&'device Self::PD, Self::Error>;
+    fn get_paired_device<'device>(
+        &self,
+        device_id: &Uuid,
+    ) -> Result<&'device Self::PD, Self::Error>;
     /// Registers a device after successful pairing
-    fn register_device(&mut self, device_id: &Uuid, encryption: EncryptionSet) -> Result<(), Self::Error>;
+    fn register_device(
+        &mut self,
+        device_id: &Uuid,
+        encryption: EncryptionSet,
+    ) -> Result<(), Self::Error>;
     /// Removes a device from the paired devices
     fn delete_device(&mut self, device_id: &Uuid) -> Result<(), Self::Error>;
 
@@ -34,9 +40,12 @@ pub trait DeviceManager {
     /// Returns true if the user accepted the pairing request.
     /// Returns false if the user rejected the pairing request.
     /// Option<Bytes> is the Test value defined in send key.
-    fn pair_request(&self, device_id: &Uuid, device_name: &str, cursor: Cursor<Bytes>) -> Result<(bool, Option<Bytes>), Self::Error>;
-
-
+    fn pair_request(
+        &self,
+        device_id: &Uuid,
+        device_name: &str,
+        cursor: Cursor<Bytes>,
+    ) -> Result<(bool, Option<Bytes>), Self::Error>;
 }
 
 /// The Paired Device

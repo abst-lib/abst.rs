@@ -1,5 +1,5 @@
-use uuid::Uuid;
 use packet::Packet;
+use uuid::Uuid;
 #[derive(Packet)]
 pub enum RealmPacket {
     /// Device ID
