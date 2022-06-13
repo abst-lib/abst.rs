@@ -1,4 +1,4 @@
-extern crate core;
+
 
 /// The functions found within this module are just for sending and receiving packets.
 /// Any handling will need to be done in the handlers module.
@@ -17,4 +17,15 @@ pub mod encryption;
 pub mod device_manager;
 
 
+use bytes::Bytes;
+use themis::keys::EcdsaPublicKey;
 pub use error::Error;
+pub trait ToBytes {
+    fn to_bytes(self) -> Bytes;
+}
+impl ToBytes for EcdsaPublicKey{
+    fn to_bytes(self) -> Bytes {
+        let vec = self.to_bytes();
+        Bytes::from(vec)
+    }
+}

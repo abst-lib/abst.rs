@@ -1,10 +1,20 @@
 use bytes::Bytes;
+use themis::keys::{EcdsaPrivateKey, EcdsaPublicKey};
 use uuid::Uuid;
+pub struct EncryptionSet{
+    pub public_key: EcdsaPublicKey,
+    pub private_key: EcdsaPrivateKey,
+    pub key_b: EcdsaPublicKey,
+}
 #[derive(Debug)]
 pub enum EncryptionError{
     ThemisError,
 }
-
+impl From<themis::Error> for EncryptionError{
+    fn from(_: themis::Error) -> Self{
+        EncryptionError::ThemisError
+    }
+}
 pub enum DynamicEncryptionManager {
     Themis(ThemisEncryptionManager),
     None,

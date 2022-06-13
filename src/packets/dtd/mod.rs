@@ -41,5 +41,7 @@ pub enum DeviceToDevicePackets {
     /// The other side will make sure they can decrypt the data. and do the same result back to you. At this point your session is secure.
     #[packet(packet_id = 3)]
     KeyCheck(Bytes),
+    #[packet(packet_id = 4)]
+    KeyCheckResponse(bool),
 }
 

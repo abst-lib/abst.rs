@@ -1,5 +1,8 @@
-use uuid::Uuid;
-use crate::encryption::{EncryptionManager, ThemisEncryptionManager};
+use std::io::Cursor;
+use bytes::Bytes;
+use themis::keys::EcdsaKeyPair;
+use uuid::{Uuid};
+use crate::encryption::{EncryptionManager, EncryptionSet, ThemisEncryptionManager};
 use crate::Error;
 
 /// The Manger of Paired Devices
@@ -21,9 +24,19 @@ pub trait DeviceManager {
     /// Gets the paired device
     fn get_paired_device<'device>(&self, device_id: &Uuid) -> Result<&'device Self::PD, Self::Error>;
     /// Registers a device after successful pairing
-    fn register_device(&mut self, device_id: &Uuid, encryption: Self::EH) -> Result<(), Self::Error>;
+    fn register_device(&mut self, device_id: &Uuid, encryption: EncryptionSet) -> Result<(), Self::Error>;
     /// Removes a device from the paired devices
     fn delete_device(&mut self, device_id: &Uuid) -> Result<(), Self::Error>;
+
+    /// This is called by the handler when a pair request happens. It is your job to ask the user if they want to pair.
+    ///
+    /// # Returns
+    /// Returns true if the user accepted the pairing request.
+    /// Returns false if the user rejected the pairing request.
+    /// Option<Bytes> is the Test value defined in send key.
+    fn pair_request(&self, device_id: &Uuid, device_name: &str, cursor: Cursor<Bytes>) -> Result<(bool, Option<Bytes>), Self::Error>;
+
+
 }
 
 /// The Paired Device
