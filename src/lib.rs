@@ -13,6 +13,7 @@ pub mod packets;
 /// Tools for Handling different packet paths
 /// Such as Device to Device. DTDViaRealm.
 pub mod protocol;
+pub mod realm;
 
 use bytes::Bytes;
 pub use error::Error;

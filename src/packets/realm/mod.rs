@@ -24,18 +24,20 @@ pub enum RealmPacket {
         public_key_hash: Option<Bytes>, // Hash of the public key that the realm should have. None if the realm is not paired
     },
     /// Sent from the Realm to the client if the login was successful
-    #[packet(packet_id = 4)]
+    #[packet(packet_id = 3)]
     SendKey {
         public_key: Bytes,
     },
     /// Send to the other device. Only encrypt the data inside the packets. leave the packet id and protocol id alone.
     /// The other side will make sure they can decrypt the data. and do the same result back to you. At this point your session is secure.
-    #[packet(packet_id = 5)]
+    #[packet(packet_id = 4)]
     KeyCheck(Bytes),
-    #[packet(packet_id = 6)]
+    #[packet(packet_id = 5)]
     KeyCheckResponse(bool),
-    #[packet(packet_id = 7)]
+    #[packet(packet_id = 6)]
     DeviceLogin(LoginDetails),
+    #[packet(packet_id = 7)]
+    DeviceProxy(Uuid, Bytes),
 }
 
 /// The login details for the Realm

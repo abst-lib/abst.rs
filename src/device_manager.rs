@@ -1,8 +1,10 @@
 use bytes::Bytes;
 use std::io::Cursor;
+use std::net::IpAddr;
 
 use crate::encryption::{EncryptionManager, EncryptionSet};
 use uuid::Uuid;
+use crate::realm::Realm;
 
 /// The Manger of Paired Devices
 pub trait DeviceManager {
@@ -12,6 +14,8 @@ pub trait DeviceManager {
     type EH: EncryptionManager;
     /// The Paired Device Type
     type PD: PairedDevice<Self::EH>;
+
+    type RealmConnection: Realm<EH=Self::EH>;
     /// Gets the Current Device ID
     fn get_device_id(&self) -> Uuid;
     /// Gets the current device name
@@ -46,6 +50,9 @@ pub trait DeviceManager {
         device_name: &str,
         cursor: Cursor<Bytes>,
     ) -> Result<(bool, Option<Bytes>), Self::Error>;
+
+    fn get_connected_realms<'realm>(&self) -> Result<Vec<&'realm Self::RealmConnection>, Self::Error>;
+    fn get_realm_by_ip<'realm>(&self, realm: IpAddr) -> Result<&'realm Self::RealmConnection, Self::Error>;
 }
 
 /// The Paired Device

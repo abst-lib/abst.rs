@@ -31,10 +31,10 @@ pub async fn read_packet<Reader: AsyncReadExt + Unpin, EM: EncryptionManager>(
     reader: &mut Reader,
     em: &EM,
 ) -> Result<(u8, u8, Bytes), Error> {
-    let mut result = read_packet_raw(reader).await?.reader();
-    //TODO decrypt
-    let (protocol, packet) = read_packet_type(&mut result)?;
-    let size = read_bin_len(&mut result)? as usize;
+    let  result = read_packet_raw(reader).await?;
+    let mut reader = em.decrypt_message(result)?.reader();
+    let (protocol, packet) = read_packet_type(&mut reader)?;
+    let size = read_bin_len(&mut reader)? as usize;
     let mut content = BytesMut::with_capacity(size);
     reader
         .take(size as u64)
@@ -55,10 +55,10 @@ pub async fn send_packet<
     em: &EM,
     content: Content,
 ) -> Result<(), Error> {
-    let mut payload = Vec::new();
+    let mut payload =BytesMut::new();
     content.into_packet(&mut payload)?;
+    let payload = em.encrypt_message(payload.freeze())?;
     write_uint(writer, payload.len() as u64).await?;
-    // TODO encrypt
     writer.write_all(&payload).await.map_err(Error::from)
 }
 
@@ -81,8 +81,8 @@ pub async fn read_packet_from_realm<Reader: AsyncReadExt + Unpin, EM: Encryption
     reader: &mut Reader,
     em: &EM,
 ) -> Result<(u8, u8, Uuid, Bytes), Error> {
-    let mut reader = read_packet_raw(reader).await?.reader();
-    //TODO decrypt
+    let reader = read_packet_raw(reader).await?;
+    let mut reader = em.decrypt_message(reader)?.reader();
     let (protocol, packet) = read_packet_type(&mut reader)?;
     let uuid = PacketContent::read(&mut reader)?;
     read_bin_len(&mut reader)?; //Drop this data

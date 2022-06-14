@@ -3,6 +3,7 @@ pub mod dtd;
 pub mod handlers;
 pub mod realm;
 
+use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::{BufRead, Write};
@@ -33,15 +34,59 @@ pub enum ErrorPacket {
         reference_protocol: u8,
         reference_packet: u8,
         error_code: u8,
-        error_message: Option<String>,
+        error_message: Option<Cow<'static, str>>,
     },
     /// No Reference to what caused the error
     ErrorNoReference {
         error_code: u8,
-        error_message: Option<String>,
+        error_message: Option<Cow<'static, str>>,
     },
 }
+impl ErrorPacket{
+    pub fn invalid_state(protocol: u8, packet: u8) -> Self {
+        ErrorPacket::ErrorWithReference {
+            reference_protocol: protocol,
+            reference_packet: packet,
+            error_code: 0,
+            error_message: Some("Invalid State".into()),
+        }
+    }
+}
+impl From<(u8, u8,u8)> for ErrorPacket{
+    fn from((protocol, reference, error): (u8, u8, u8)) -> Self {
+        Self::ErrorWithReference {
+            reference_protocol: protocol,
+            reference_packet: reference,
+            error_code: error,
+            error_message: None
+        }
+    }
+}impl From<(u8, u8,u8, &'static str)> for ErrorPacket{
+    fn from((protocol, reference, error, debug): (u8, u8, u8, &'static str)) -> Self {
+        Self::ErrorWithReference {
+            reference_protocol: protocol,
+            reference_packet: reference,
+            error_code: error,
+            error_message: Some(Cow::Borrowed(debug))
+        }
+    }
+}
 
+impl From<u8> for ErrorPacket{
+    fn from(error: u8) -> Self {
+        Self::ErrorNoReference {
+            error_code: error,
+            error_message: None
+        }
+    }
+}impl From<(u8,  &'static str)> for ErrorPacket{
+    fn from((error, debug): (u8, &'static str)) -> Self {
+        Self::ErrorNoReference {
+            error_code: error,
+            error_message: Some(Cow::Borrowed(debug))
+        }
+    }
+}
 impl Display for ErrorPacket {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

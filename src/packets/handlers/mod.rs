@@ -1,17 +1,22 @@
+use std::borrow::Cow;
 use crate::device_manager::{DeviceManager, PairedDevice};
 use crate::encryption::{
     DynamicEncryptionManager, EncryptionError, EncryptionManager, EncryptionSet,
 };
 use crate::packets::dtd::DeviceToDevicePackets;
-use crate::packets::Protocol;
+use crate::packets::{ErrorPacket, Protocol};
 use crate::protocol::{ConnectionStatus, DTDViaRealm, DirectConnection};
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use rand::Rng;
 use std::io::Cursor;
-use log::warn;
+use log::{error, warn};
+use packet::read_packet_type;
+use rmp::decode::read_bin_len;
 use themis::keygen::gen_ec_key_pair;
 use themis::keys::{EcdsaKeyPair, EcdsaPublicKey};
 use themis::secure_message::SecureMessage;
+use crate::packets::Protocol::DeviceToDevice;
+use crate::packets::realm::RealmPacket;
 
 /// Responses the Handlers can return
 pub enum Response {
@@ -177,7 +182,7 @@ impl<
                 let key_b = if let Ok(key_b) = EcdsaPublicKey::try_from_slice(public_key.as_ref()) {
                     key_b
                 } else {
-                    return todo!("Implement Error");
+                    return Ok(Response::Message(DeviceToDevicePackets::Error(ErrorPacket::from((0, 4, 1, "Bad Key"))).into()));
                 };
                 let other_test_string = test;
                 if let Some(context) = connection_context {
@@ -185,7 +190,7 @@ impl<
                         if let ConnectionStatus::PendingPairRequest { test } = &context.status {
                             let my_key = gen_ec_key_pair();
                             if other_test_string.is_none() != test.is_none() {
-                                todo!("Mismatching Test Strings")
+                                return Ok(Response::Message(DeviceToDevicePackets::Error(ErrorPacket::from((0, 4, 1, "Key Check Failed"))).into()));
                             }
                             let (my_private, my_public) = my_key.split();
                             let encrypted_key_again = if let Some(other_test_string) =
@@ -201,7 +206,7 @@ impl<
                                     .encrypt(my_test.as_ref())
                                     .map_err(EncryptionError::from)?;
                                 if !other_test_string.eq(&vec) {
-                                    return todo!("Mismatching Test Strings"); // The key has been compromised
+                                    return Ok(Response::Message(DeviceToDevicePackets::Error(ErrorPacket::from((0, 4, 1, "Key Check Failed"))).into()));
                                 }
                                 let my_message = SecureMessage::new(EcdsaKeyPair::join(
                                     my_private.clone(),
@@ -366,16 +371,17 @@ impl<
                                 context.status = ConnectionStatus::Connected;
                                 Ok(Response::Nothing)
                             } else {
-                                todo!("Implement Error")
+                                warn!("Key Check Failed");
+                                Ok(Response::Nothing)
                             }
                         } else {
-                            todo!("Implement Error")
+                            Ok(Response::Message(DeviceToDevicePackets::Error(ErrorPacket::from((0, 5, 0, "Invalid State"))).into()))
                         }
                     } else {
                         panic!("Direct Connections only!")
                     }
                 } else {
-                    todo!("Implement Error")
+                    Ok(Response::Message(DeviceToDevicePackets::Error(ErrorPacket::from((0, 5, 0, "Invalid State"))).into()))
                 }
             }
             DeviceToDevicePackets::Heartbeat => {

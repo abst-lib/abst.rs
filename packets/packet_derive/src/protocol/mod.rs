@@ -38,6 +38,7 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
     let mut get_id_arms = Vec::new();
     let mut write_data = Vec::new();
     let mut read_data = Vec::new();
+    let mut from_packet_impls = Vec::new();
     for protocol_variant in data.variants {
         let protocol_id = protocol_variant
             .attrs
@@ -83,6 +84,7 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
                         ))
                     }
                 };
+
                 let read_method = create_reader(&value, &protocol_variant, &type_ident)?;
                 let write_method = create_writer(&value, protocol_id)?;
                 let handler = quote! {
@@ -96,12 +98,14 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
                 };
                 handlers.push(handler);
                 protocol_ids.push(protocol_id);
+                from_packet_impls.push(from_packet(&value, &protocol_variant, &type_ident)?);
             }
         }
     }
 
     Ok(quote! {
         #(#handlers)*
+        #(#from_packet_impls)*
         impl ::packet::protocol::Protocol for #type_ident {
             type ReadError = ::packet::PacketReadError;
             type WriteError = ::packet::PacketWriteError;
@@ -170,4 +174,16 @@ fn create_writer(packet_type: &Field, protocol_id: u8) -> Result<TokenStream> {
         }
     };
     Ok(write_method)
+}
+fn from_packet(packet_type: &Field, variant: &Variant, value: &syn::Ident) -> Result<TokenStream> {
+    let variant_ident = &variant.ident;
+    let packet_ty = &packet_type.ty;
+    let from_packet = quote! {
+        impl From<#packet_ty> for #value {
+            fn from(packet: #packet_ty) -> Self {
+                #value::#variant_ident(packet)
+            }
+        }
+    };
+    Ok(from_packet)
 }

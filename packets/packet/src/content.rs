@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::{PacketReadError, PacketWriteError};
 use std::io::{BufRead, Read, Write};
 use bytes::{Bytes, BytesMut};
@@ -154,6 +155,26 @@ impl<T> PacketContent for Option<T> where T: PacketContent {
         } else {
             rmp::encode::write_nil(writer).map_err(PacketWriteError::from)?;
         }
+        Ok(())
+    }
+}
+impl< T> PacketContent for Cow<'_, T>  where T: PacketContent + Clone {
+    fn read<Reader: BufRead>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        T::read(reader).map(Cow::Owned)
+    }
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        T::write(self.as_ref(), writer)
+    }
+}
+impl PacketContent for Cow<'_, str> {
+    fn read<Reader: BufRead>(reader: &mut Reader) -> Result<Self, PacketReadError> where Self: Sized {
+        let len: u32 = rmp::decode::read_str_len(reader).map_err(PacketReadError::from)?;
+        let mut vec = Vec::with_capacity(len as usize);
+        reader.read_exact(&mut vec).map_err(PacketReadError::from)?;
+        Ok(Cow::Owned(String::from_utf8(vec).map_err(|e| PacketReadError::ContentError(Box::new(e)))?))
+    }
+    fn write<Writer: Write>(&self, writer: &mut Writer) -> Result<(), PacketWriteError> where Self: Sized {
+        rmp::encode::write_str(writer, self.as_ref()).map_err(PacketWriteError::from)?;
         Ok(())
     }
 }
