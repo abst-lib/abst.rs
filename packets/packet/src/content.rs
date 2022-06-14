@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use crate::{PacketReadError, PacketWriteError};
 use std::io::{BufRead, Read, Write};
 use bytes::{Bytes, BytesMut};
-use bytes::buf::Reader;
 use rmp::Marker;
 use uuid::Uuid;
 

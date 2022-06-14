@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use crate::device_manager::{DeviceManager, PairedDevice};
 use crate::encryption::{
     DynamicEncryptionManager, EncryptionError, EncryptionManager, EncryptionSet,
@@ -6,17 +5,15 @@ use crate::encryption::{
 use crate::packets::dtd::DeviceToDevicePackets;
 use crate::packets::{ErrorPacket, Protocol};
 use crate::protocol::{ConnectionStatus, DTDViaRealm, DirectConnection};
-use bytes::{Buf, Bytes};
+use bytes::{Bytes};
 use rand::Rng;
 use std::io::Cursor;
-use log::{error, warn};
-use packet::read_packet_type;
-use rmp::decode::read_bin_len;
+use log::{ warn};
+
 use themis::keygen::gen_ec_key_pair;
 use themis::keys::{EcdsaKeyPair, EcdsaPublicKey};
 use themis::secure_message::SecureMessage;
-use crate::packets::Protocol::DeviceToDevice;
-use crate::packets::realm::RealmPacket;
+
 
 /// Responses the Handlers can return
 pub enum Response {

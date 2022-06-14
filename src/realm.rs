@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 use uuid::Uuid;
 use crate::device_manager::PairedDevice;
-use crate::encryption::{EncryptionManager, EncryptionSet};
+use crate::encryption::{EncryptionManager};
 use crate::packets::realm::LoginDetails;
 
 

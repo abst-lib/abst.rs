@@ -1,7 +1,7 @@
 use crate::encryption::EncryptionManager;
 use crate::error::Error;
 use crate::protocol::{ConnectionType, DTDViaRealm, DirectConnection};
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use packet::{read_packet_type, IntoPacket, PacketContent};
 use rmp::decode::read_bin_len;
 use rmp::sync;
@@ -30,7 +30,7 @@ pub async fn read_packet_raw<Reader: AsyncReadExt + Unpin>(
 pub async fn read_packet<Reader: AsyncReadExt + Unpin, EM: EncryptionManager>(
     reader: &mut Reader,
     em: &EM,
-) -> Result<(u8, u8, Bytes), Error> {
+) -> Result<(u8, u8, Bytes), Error>  where Error: From<EM::Error> {
     let  result = read_packet_raw(reader).await?;
     let mut reader = em.decrypt_message(result)?.reader();
     let (protocol, packet) = read_packet_type(&mut reader)?;
@@ -38,9 +38,7 @@ pub async fn read_packet<Reader: AsyncReadExt + Unpin, EM: EncryptionManager>(
     let mut content = BytesMut::with_capacity(size);
     reader
         .take(size as u64)
-        .read_exact(&mut content)
-        .await
-        .map_err(Error::from)?;
+        .read_exact(&mut content)?;
     Ok((protocol, packet, content.freeze()))
 }
 
@@ -54,12 +52,13 @@ pub async fn send_packet<
     writer: &mut Writer,
     em: &EM,
     content: Content,
-) -> Result<(), Error> {
-    let mut payload =BytesMut::new();
+) -> Result<(), Error> where Error: From<EM::Error>  {
+    let mut payload =BytesMut::new().writer();
     content.into_packet(&mut payload)?;
-    let payload = em.encrypt_message(payload.freeze())?;
+    let payload = em.encrypt_message(payload.into_inner().freeze())?;
     write_uint(writer, payload.len() as u64).await?;
-    writer.write_all(&payload).await.map_err(Error::from)
+    writer.write_all(&payload).await?;
+    Ok(())
 }
 
 /// Writes a Packet to the Given Writer. This is for the Device to Realm Connection Type
@@ -80,7 +79,7 @@ pub async fn send_packet_to_device_via_realm<
 pub async fn read_packet_from_realm<Reader: AsyncReadExt + Unpin, EM: EncryptionManager>(
     reader: &mut Reader,
     em: &EM,
-) -> Result<(u8, u8, Uuid, Bytes), Error> {
+) -> Result<(u8, u8, Uuid, Bytes), Error> where Error: From<EM::Error> {
     let reader = read_packet_raw(reader).await?;
     let mut reader = em.decrypt_message(reader)?.reader();
     let (protocol, packet) = read_packet_type(&mut reader)?;

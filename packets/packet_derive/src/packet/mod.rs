@@ -13,8 +13,7 @@ mod packet_attrs {
 #[warn(dead_code)]
 enum PacketAttrs {
     PacketId {
-        value_token: packet_attrs::packet_id,
-        eq_token: syn::Token![=],
+
         value: LitInt,
     },
     Default,
@@ -24,9 +23,10 @@ impl Parse for PacketAttrs {
     fn parse(input: ParseStream) -> Result<Self> {
         let lookahead = input.lookahead1();
         if lookahead.peek(packet_attrs::packet_id) {
+            input.parse::< packet_attrs::packet_id>()?;
+            input.parse::<syn::Token![=]>()?;
             Ok(PacketAttrs::PacketId {
-                value_token: input.parse()?,
-                eq_token: input.parse()?,
+
                 value: input.parse()?,
             })
         } else if lookahead.peek(packet_attrs::default) {
@@ -114,6 +114,7 @@ pub(crate) fn parse_enum(packet_ident: syn::Ident, data: DataEnum) -> Result<Tok
                 }?;
                 write_arms.push(arm);
                 let handler = quote! {
+                    #[allow(non_snake_case)]
                     mod #mod_name {
                         use super::*;
                         use packet::PacketContent;

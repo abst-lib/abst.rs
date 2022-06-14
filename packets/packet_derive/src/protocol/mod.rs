@@ -11,8 +11,7 @@ mod packet_attrs {
 #[warn(dead_code)]
 enum ProtocolAttrs {
     ProtocolId {
-        value_token: packet_attrs::protocol_id,
-        eq_token: syn::Token![=],
+
         value: LitInt,
     },
 }
@@ -21,9 +20,10 @@ impl Parse for ProtocolAttrs {
     fn parse(input: ParseStream) -> Result<Self> {
         let lookahead = input.lookahead1();
         if lookahead.peek(packet_attrs::protocol_id) {
+            input.parse::< packet_attrs::protocol_id>()?;
+            input.parse::<syn::Token![=]>()?;
             Ok(ProtocolAttrs::ProtocolId {
-                value_token: input.parse()?,
-                eq_token: input.parse()?,
+
                 value: input.parse()?,
             })
         } else {
@@ -88,6 +88,7 @@ pub(crate) fn parse_enum(type_ident: Ident, data: DataEnum) -> Result<TokenStrea
                 let read_method = create_reader(&value, &protocol_variant, &type_ident)?;
                 let write_method = create_writer(&value, protocol_id)?;
                 let handler = quote! {
+                    #[allow(non_snake_case)]
                     mod #mod_name {
                         use super::*;
                         use packet::PacketContent;

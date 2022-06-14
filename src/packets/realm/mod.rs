@@ -1,5 +1,4 @@
 use std::io::{BufRead, Write};
-use std::process::id;
 use bytes::{Bytes, BytesMut};
 use packet::{Packet, PacketReadError, PacketWriteError};
 use uuid::Uuid;

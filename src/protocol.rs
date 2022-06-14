@@ -2,8 +2,7 @@ use std::net::IpAddr;
 use bytes::Bytes;
 use themis::keys::{EcdsaPrivateKey, EcdsaPublicKey};
 use uuid::Uuid;
-use crate::encryption::DynamicEncryptionManager;
-use crate::realm::DeviceRealmConnection;
+
 
 #[derive(Clone)]
 pub enum ConnectionStatus {
