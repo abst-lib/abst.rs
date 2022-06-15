@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "packet",
+    "packet_derive",
+]
